@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: i686-pc-windows-msvc
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: i686
+
+      - name: Build
+        run: cargo build --release --target i686-pc-windows-msvc
+
+      - name: Stage artifact
+        run: |
+          mkdir staging
+          copy target\i686-pc-windows-msvc\release\burt.dll staging\
+
+      - name: Upload artifact to workflow run
+        uses: actions/upload-artifact@v4
+        with:
+          name: burt-dll
+          path: staging/burt.dll
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: staging/burt.dll
+          generate_release_notes: true
+          fail_on_unmatched_files: true
