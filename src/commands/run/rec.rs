@@ -1,24 +1,18 @@
 use std::{
     borrow::Cow,
-    sync::{
-        LazyLock, RwLock,
-        atomic::{AtomicBool, Ordering},
-    },
+    sync::{LazyLock, RwLock},
 };
-
-use chrono::Local;
 
 use crate::{
-    bridge::commands::CCommand,
     cexec, clog,
-    commands::run_state::{self, RunState},
+    commands::run::state::{self, RunState},
     consts::RECORDS_FORMAT,
     log,
+    os::format_local_time,
 };
-use burt_macros::burt_command;
+use burt_command::burt_command;
 
 pub static CURRENT_MAP: LazyLock<RwLock<String>> = LazyLock::new(|| RwLock::new(String::new()));
-pub static IN_LOAD: AtomicBool = AtomicBool::new(false);
 
 fn sanitize(map_name: &str) -> Cow<'_, str> {
     if map_name.is_empty() {
@@ -41,46 +35,50 @@ fn sanitize(map_name: &str) -> Cow<'_, str> {
 
 fn get_filename(map_name: &str) -> String {
     let sanitized = sanitize(map_name);
-    let ts = Local::now().format(RECORDS_FORMAT);
+    let ts = format_local_time(RECORDS_FORMAT);
     format!("burt_{sanitized}_{ts}")
 }
 
 pub fn on_map_ready(map_name: &str) {
     let filename = get_filename(map_name);
     cexec!("stop");
-    if let Some(folder) = run_state::current_folder() {
+    if let Some(folder) = state::current_folder() {
         cexec!("record records/{folder}/{filename}");
     } else {
         cexec!("record records/{filename}");
     }
 }
 
-/// Toggle automatic demo recording on level load
+/// Toggles automatic demo recording on level load.
+///
+/// `enabled:` whether to enable recording. By default flips automatically
 #[burt_command]
-pub fn burt_rec(enabled: bool) {
-    {
-        let mut st = run_state::RUN_STATE.write().unwrap();
-        match (&*st, enabled) {
-            (RunState::Speedrun { .. }, _) => {
-                clog!("Can not use the command while in speedrun");
-                return;
-            }
-            (RunState::ManualRec, true) => {
-                clog!("Already recording");
-                return;
-            }
-            (RunState::Idle, false) => {
-                clog!("Was not recording already");
-                return;
-            }
-            (RunState::Idle, true) => {
-                *st = RunState::ManualRec;
-            }
-            (RunState::ManualRec, false) => {
-                *st = RunState::Idle;
-            }
+pub fn burt_rec(enabled: Option<bool>) {
+    let enabled =
+        enabled.unwrap_or_else(|| matches!(&*state::RUN_STATE.read().unwrap(), RunState::Idle));
+
+    let mut st = state::RUN_STATE.write().unwrap();
+    match (&*st, enabled) {
+        (RunState::Speedrun { .. }, _) => {
+            clog!(err_prefix; "Can't use the command while in speedrun");
+            return;
+        }
+        (RunState::ManualRec, true) => {
+            clog!(err_prefix; "Already recording");
+            return;
+        }
+        (RunState::Idle, false) => {
+            clog!(prefix; "Wasn't recording already");
+            return;
+        }
+        (RunState::Idle, true) => {
+            *st = RunState::ManualRec;
+        }
+        (RunState::ManualRec, false) => {
+            *st = RunState::Idle;
         }
     }
+    drop(st);
 
     if enabled {
         let map = CURRENT_MAP.read().unwrap().clone();
@@ -89,7 +87,7 @@ pub fn burt_rec(enabled: bool) {
         log!("[burt_rec] Recording started");
     } else {
         cexec!("stop");
-        IN_LOAD.store(false, Ordering::Relaxed);
         clog!(prefix; "Recording stopped");
+        log!("[burt_rec] Recording stopped");
     }
 }

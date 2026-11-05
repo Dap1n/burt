@@ -1,6 +1,6 @@
 [package]
 name = "burt"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 description = "Beta Utility for Recording & Tracing"
 
@@ -8,12 +8,11 @@ description = "Beta Utility for Recording & Tracing"
 crate-type = ["cdylib"]
 
 [dependencies]
-burt_macros = { path = "./burt_macros" }
-chrono = "0.4"
-enigo = "0.6"
-windows-sys = { version = "0.61", features = [
-    "Win32_System_Memory",
-    "Win32_System_LibraryLoader",
+burt_command = { path = "./burt_command" }
+smallvec = "1.16.4"
+pe-sigscan = { version = "0.4", features = ["memchr"] }
+portable-atomic = { version = "1.15", default-features = false, features = [
+    "float",
 ] }
 
 [profile.release]

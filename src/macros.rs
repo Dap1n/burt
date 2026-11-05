@@ -48,7 +48,17 @@ macro_rules! clog {
     // Tagged prefix branch: clog!(prefix; [ Color => "..." ], [ Color => "..." ])
     (prefix; $( [ $color:expr => $($arg:tt)* ] ),+ $(,)?) => {
         $crate::clog!(
-            [$crate::bridge::console::Color::LIME => "[BURT] "],
+            [$crate::structs::Color::LIME => "[BURT] "],
+            $(
+                [$color => $($arg)*],
+            )+
+        );
+    };
+
+    // Tagged error prefix branch: clog!(err_prefix; [ Color => "..." ], [ Color => "..." ])
+    (err_prefix; $( [ $color:expr => $($arg:tt)* ] ),+ $(,)?) => {
+        $crate::clog!(
+            [$crate::structs::Color::RED => "[BURT] "],
             $(
                 [$color => $($arg)*],
             )+
@@ -58,8 +68,16 @@ macro_rules! clog {
     // Tagged prefix branch: clog!(prefix; "Plugin loading...", arg)
     (prefix; $($arg:tt)*) => {
         $crate::clog!(
-            [$crate::bridge::console::Color::LIME => "[BURT] "],
-            [$crate::bridge::console::Color::WHITE => $($arg)*],
+            [$crate::structs::Color::LIME => "[BURT] "],
+            [$crate::structs::Color::WHITE => $($arg)*],
+        );
+    };
+
+    // Tagged error prefix branch: clog!(err_prefix; "Plugin loading...", arg)
+    (err_prefix; $($arg:tt)*) => {
+        $crate::clog!(
+            [$crate::structs::Color::RED => "[BURT] "],
+            [$crate::structs::Color::WHITE => $($arg)*],
         );
     };
 
@@ -69,7 +87,7 @@ macro_rules! clog {
             $(
                 $crate::bridge::console::con_color_msg(con_color_msg, &$color, &format!($($arg)*));
             )+
-            $crate::bridge::console::con_color_msg(con_color_msg, &$crate::bridge::console::Color::WHITE, "\n");
+            $crate::bridge::console::con_color_msg(con_color_msg, &$crate::structs::Color::WHITE, "\n");
         } else {
             $(
                 $crate::log!("(Console unavailable) {}", format!($($arg)*));
@@ -80,7 +98,7 @@ macro_rules! clog {
     // Single-argument fallback: clog!("Plugin loading...", arg)
     ($($arg:tt)*) => {
         $crate::clog!(
-            [$crate::bridge::console::Color::WHITE => $($arg)*]
+            [$crate::structs::Color::WHITE => $($arg)*]
         );
     };
 }
@@ -107,11 +125,11 @@ macro_rules! cexec {
 macro_rules! define_bounds {
     // Both bounds negative:  -5 <= x <= -1
     (- $lo:literal <= $var:ident <= - $hi:literal) => {
-        if !(-$lo..=$hi).contains(&$var) {
+        if !(-$lo..=-$hi).contains(&$var) {
             $crate::clog!(
-                [$crate::bridge::console::Color::RED => "{}", stringify!($var)],
-                [$crate::bridge::console::Color::WHITE  => " parameter expects numbers to be in range "],
-                [$crate::bridge::console::Color::RED => "[-{}; -{}]", $lo, $hi],
+                [$crate::structs::Color::RED => "{}", stringify!($var)],
+                [$crate::structs::Color::WHITE => " parameter expects numbers to be in range "],
+                [$crate::structs::Color::RED => "[-{}; -{}]", $lo, $hi],
             );
             return;
         }
@@ -121,9 +139,9 @@ macro_rules! define_bounds {
     (- $lo:literal <= $var:ident <= $hi:literal) => {
         if !(-$lo..=$hi).contains(&$var) {
             $crate::clog!(
-                [$crate::bridge::console::Color::RED => "{}", stringify!($var)],
-                [$crate::bridge::console::Color::WHITE  => " parameter expects numbers to be in range "],
-                [$crate::bridge::console::Color::RED => "[-{}; {}]", $lo, $hi],
+                [$crate::structs::Color::RED => "{}", stringify!($var)],
+                [$crate::structs::Color::WHITE => " parameter expects numbers to be in range "],
+                [$crate::structs::Color::RED => "[-{}; {}]", $lo, $hi],
             );
             return;
         }
@@ -131,34 +149,51 @@ macro_rules! define_bounds {
 
     // Both bounds non-negative:  0 <= x <= 5
     ($lo:literal <= $var:ident <= $hi:literal) => {
-        if !(-$lo..=$hi).contains(&$var) {
+        if !($lo..=$hi).contains(&$var) {
             $crate::clog!(
-                [$crate::bridge::console::Color::RED => "{}", stringify!($var)],
-                [$crate::bridge::console::Color::WHITE  => " parameter expects numbers to be in range "],
-                [$crate::bridge::console::Color::RED => "[{}; {}]", $lo, $hi],
+                [$crate::structs::Color::RED => "{}", stringify!($var)],
+                [$crate::structs::Color::WHITE => " parameter expects numbers to be in range "],
+                [$crate::structs::Color::RED => "[{}; {}]", $lo, $hi],
             );
             return;
         }
     };
 }
 
+pub const fn extract_cmd_name(path: &'static str) -> &'static str {
+    let bytes = path.as_bytes();
+    let mut start = 0;
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b':' {
+            start = i + 1;
+        }
+        i += 1;
+    }
+    path.split_at(start).1
+}
+
 /// Registers BURT commands
 #[macro_export]
 macro_rules! register_commands {
-    ($( $name:expr => $help:expr => $callback:path ),* $(,)?) => {
-        pub static PLUGIN_COMMANDS: [$crate::bridge::commands::SyncCommand; $crate::register_commands!(@count $($name),*)] = [
+    ($( $path:path $(| $autocomplete:path)? => $help:expr ),* $(,)?) => {
+        pub static PLUGIN_COMMANDS: [$crate::bridge::commands::SyncCommand; $crate::register_commands!(@count $($path),*)] = [
             $(
                 $crate::bridge::commands::SyncCommand::new(
                     $crate::bridge::commands::ConCommand::new(
-                        concat!($name, "\0"),
+                        $crate::macros::extract_cmd_name(concat!(stringify!($path), "\0")),
                         concat!($help, "\0"),
-                        $callback,
+                        $path,
+                        $crate::register_commands!(@opt_auto $($autocomplete)?)
                     )
                 )
             ),*
         ];
     };
 
+    (@opt_auto) => { None };
+    (@opt_auto $autocomplete:path) => { Some($autocomplete) };
+
     (@count) => { 0usize };
-    (@count $head:expr $(, $tail:expr)*) => { 1usize + $crate::register_commands!(@count $($tail),*) };
+    (@count $head:path $(, $tail:path)*) => { 1usize + $crate::register_commands!(@count $($tail),*) };
 }

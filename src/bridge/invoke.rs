@@ -7,45 +7,11 @@ use std::{
 use crate::bridge::commands::CreateInterfaceFn;
 
 #[inline]
-unsafe fn call_vfunc<F>(this_ptr: *mut c_void, index: usize) -> F
-where
-    F: Copy,
-{
+const unsafe fn call_vfunc<F: Copy>(this_ptr: *mut c_void, index: usize) -> F {
     unsafe {
         let vtable = *(this_ptr as *const *const *const c_void);
         let vfunc_ptr = *vtable.add(index);
         mem::transmute_copy(&vfunc_ptr)
-    }
-}
-
-#[repr(C)]
-pub struct edict_t {
-    flags: i32,
-    area: i16,
-    headnode: i16,
-    free_time: f32,
-    networkable: *const c_void,
-    unknown: *const c_void,
-    pv_private_data: *mut c_void,
-}
-
-/// Retrieves an edict pointer directly from engine.dll without VTable lookups.
-pub unsafe fn get_edict_of_ent_index(ent_index: i32) -> *mut edict_t {
-    // 0x10098640 - 0x10000000 (Image Base) = 0x00098640 RVA
-    const PENTITY_RVA: usize = 0x00098640;
-    unsafe extern "system" {
-        fn GetModuleHandleA(lpModuleName: *const c_char) -> *mut c_void;
-    }
-
-    unsafe {
-        let engine_module = GetModuleHandleA(c"engine.dll".as_ptr()) as usize;
-        if engine_module == 0 {
-            return std::ptr::null_mut();
-        }
-
-        type FnPEntityOfEntIndex = unsafe extern "cdecl" fn(ent_index: i32) -> *mut edict_t;
-        let p_entity_fn: FnPEntityOfEntIndex = mem::transmute(engine_module + PENTITY_RVA);
-        p_entity_fn(ent_index)
     }
 }
 

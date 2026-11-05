@@ -1,21 +1,17 @@
-use std::sync::atomic::Ordering;
-
 use crate::{
-    bridge::{commands::CCommand, console::Color},
     cexec, clog,
-    commands::{
-        rec::IN_LOAD,
-        run_state::{self, RunState},
-    },
+    commands::run::state::{self, RunState},
     log,
+    structs::Color,
 };
-use burt_macros::burt_command;
+
+use burt_command::burt_command;
 
 pub fn stop_internal(automatic: bool) {
     let folder_name = {
-        let mut st = run_state::RUN_STATE.write().unwrap();
+        let mut st = state::RUN_STATE.write().unwrap();
         let RunState::Speedrun { folder, .. } = &*st else {
-            clog!("Speedrun was not even started");
+            clog!(prefix; "Speedrun wasn't started");
             return;
         };
         let folder = folder.clone();
@@ -29,7 +25,6 @@ pub fn stop_internal(automatic: bool) {
         log!("[sr_stop] Ending the speedrun");
     }
 
-    IN_LOAD.store(false, Ordering::Relaxed);
     cexec!("stop");
 
     clog!(prefix;
@@ -42,7 +37,8 @@ pub fn stop_internal(automatic: bool) {
     );
 }
 
-/// Ends the speedrun
+/// Ends the speedrun.
+/// Gets automatically invoked when game ends.
 #[burt_command]
 pub fn burt_sr_stop() {
     stop_internal(false);
