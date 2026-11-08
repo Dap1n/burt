@@ -17,7 +17,8 @@ use crate::{
     },
     define_subscriptions,
     game::{
-        cvars::get_move_speed, hooks::create_move::SCHEDULED_ANGLES, math, modules, offsets::*,
+        cvars::get_move_speed, hooks::create_move::SCHEDULED_ANGLES, math, modules,
+        offsets_provider::provider,
     },
     log,
     os::*,
@@ -44,7 +45,7 @@ unsafe extern "thiscall" fn dispatch(this: *mut c_void, cmd: *mut u8) {
     cache_body_angles(cmd as *const u8);
 
     let mut args = ProcessCmdArgs { this, cmd };
-    let seq = unsafe { *(args.cmd.add(CUSERCMD_SEQUENCE_NUMBER_OFF) as *const i32) };
+    let seq = unsafe { *(args.cmd.add(provider().cusercmd_sequence_number_off()) as *const i32) };
 
     if seq != 0 && is_simulating() && !this.is_null() {
         SCHEDULED_MOVEMENT.store(0, Ordering::Relaxed);
@@ -63,8 +64,8 @@ unsafe extern "thiscall" fn dispatch(this: *mut c_void, cmd: *mut u8) {
         process_movement(&mut movement);
         if !movement.is_zero() {
             unsafe {
-                *(args.cmd.add(CUSERCMD_SIDE_OFF) as *mut f32) = movement.x;
-                *(args.cmd.add(CUSERCMD_FORWARD_OFF) as *mut f32) = movement.y;
+                *(args.cmd.add(provider().cusercmd_side_off()) as *mut f32) = movement.x;
+                *(args.cmd.add(provider().cusercmd_forward_off()) as *mut f32) = movement.y;
             }
         }
     }
@@ -99,7 +100,7 @@ pub(super) unsafe fn install() {
         return;
     }
 
-    let target = modules::get_addr(modules::client(), CHLINPUT_PROCESS_CMD_SIG);
+    let target = modules::get_addr(modules::client(), provider().chl_input_process_cmd_sig());
 
     unsafe {
         if let Ok(mut subs) = SUBS.try_lock() {
@@ -153,8 +154,8 @@ static CACHED_BODY_YAW: AtomicF32 = AtomicF32::new(0.0);
 
 fn cache_body_angles(cmd: *const u8) {
     unsafe {
-        let pitch = *(cmd.add(CUSERCMD_PITCH_OFF) as *const f32);
-        let yaw = *(cmd.add(CUSERCMD_YAW_OFF) as *const f32);
+        let pitch = *(cmd.add(provider().cusercmd_pitch_off()) as *const f32);
+        let yaw = *(cmd.add(provider().cusercmd_yaw_off()) as *const f32);
         CACHED_BODY_PITCH.store(pitch, Ordering::Relaxed);
         CACHED_BODY_YAW.store(yaw, Ordering::Relaxed);
     }

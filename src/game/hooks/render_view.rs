@@ -11,7 +11,7 @@ use std::{
 use crate::{
     commands::{bvars::BVAR_TAS_SKIP_TO, tas},
     define_subscriptions,
-    game::{math::Vec3, modules, offsets::*},
+    game::{math::Vec3, modules, offsets_provider::provider},
     log,
     os::*,
 };
@@ -89,7 +89,7 @@ pub(super) unsafe fn install() {
         return;
     }
 
-    let target = modules::get_addr(modules::client(), CVIEWRENDER_RENDERVIEW_SIG);
+    let target = modules::get_addr(modules::client(), provider().cviewrender_render_view_sig());
 
     unsafe {
         if ORIG_BYTES.get().is_none() {
@@ -135,12 +135,13 @@ pub(super) unsafe fn uninstall() {
     log!("[hook] render_view uninstalled");
 }
 
-pub const unsafe fn read_setup_origin(setup: *const f32) -> Vec3 {
+pub unsafe fn read_setup_origin(setup: *const f32) -> Vec3 {
+    let origin_off = provider().cviewsetup_origin_off();
     unsafe {
         (
-            *setup.add(CVIEWSETUP_ORIGIN_OFF / 4),
-            *setup.add(CVIEWSETUP_ORIGIN_OFF / 4 + 1),
-            *setup.add(CVIEWSETUP_ORIGIN_OFF / 4 + 2),
+            *setup.add(origin_off / 4),
+            *setup.add(origin_off / 4 + 1),
+            *setup.add(origin_off / 4 + 2),
         )
     }
 }

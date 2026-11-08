@@ -8,7 +8,7 @@ use std::{
 };
 
 use crate::{
-    game::{modules, offsets::*, player},
+    game::{modules, offsets_provider::provider, player},
     log,
     os::*,
 };
@@ -49,7 +49,7 @@ pub(super) unsafe fn install() {
     if INSTALLED.load(Ordering::Acquire) {
         return;
     }
-    let target = modules::get_addr(modules::server(), PHYSICS_SIMULATE_SIG);
+    let target = modules::get_addr(modules::server(), provider().physics_simulate_sig());
     let mut old = 0u32;
     unsafe {
         if ORIG_BYTES.get().is_none() {

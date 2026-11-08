@@ -6,6 +6,7 @@ pub mod hooks;
 pub mod math;
 pub mod modules;
 pub mod offsets;
+pub mod offsets_provider;
 pub mod player;
 pub mod signatures;
 
@@ -15,7 +16,12 @@ macro_rules! define_get_addr {
         static $static_name: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
 
         pub fn $fn_name() -> usize {
-            *$static_name.get_or_init(|| $crate::game::modules::get_addr($module, $sig_name))
+            *$static_name.get_or_init(|| {
+                $crate::game::modules::get_addr(
+                    $module,
+                    $crate::game::offsets_provider::provider().$sig_name(),
+                )
+            })
         }
     };
 }

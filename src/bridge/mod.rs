@@ -11,20 +11,25 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
-use crate::{bridge::vtable::PluginVTable, clog, create_plugin::create_plugin};
+use crate::{bridge::vtable::RawVTable, clog, create_plugin::create_plugin};
 
 static LOADED: AtomicBool = AtomicBool::new(false);
 
 #[repr(C)]
-pub struct MyPlugin {
-    vtable: &'static PluginVTable,
+pub struct BurtPlugin {
+    vtable: *const c_void,
 }
 
-impl MyPlugin {
-    pub const fn new(vtable: &'static PluginVTable) -> Self {
-        Self { vtable }
+impl BurtPlugin {
+    pub fn new<T: RawVTable + Send + Sync>(vtable: &'static T) -> Self {
+        Self {
+            vtable: vtable.as_ptr(),
+        }
     }
 }
+
+unsafe impl Send for BurtPlugin {}
+unsafe impl Sync for BurtPlugin {}
 
 #[unsafe(no_mangle)]
 pub extern "C" fn CreateInterface(p_name: *const c_char, p_return_code: *mut c_int) -> *mut c_void {

@@ -9,7 +9,7 @@ use crate::{
             Subscriber,
             process_cmd::{self, ProcessCmdArgs, schedule_movement},
         },
-        offsets::CUSERCMD_YAW_OFF,
+        offsets_provider::provider,
     },
     structs::Color,
 };
@@ -27,7 +27,8 @@ fn on_process_cmd(args: &mut ProcessCmdArgs) {
     let world_angle = ABSMOV_ANGLE.load(Ordering::Relaxed).to_radians();
     let strength = ABSMOV_STRENGTH.load(Ordering::Relaxed);
 
-    let cmd_yaw = unsafe { *(args.cmd.add(CUSERCMD_YAW_OFF) as *const f32) }.to_radians();
+    let cmd_yaw =
+        unsafe { *(args.cmd.add(provider().cusercmd_yaw_off()) as *const f32) }.to_radians();
 
     let rel = world_angle - cmd_yaw;
     let local_forward = rel.cos();

@@ -4,7 +4,11 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-use crate::{bridge::commands::ICVAR, game::offsets::*};
+use crate::{
+    bridge::commands::ICVAR,
+    engine_build::{self, EngineBuild},
+    game::offsets_provider::provider,
+};
 
 const NOT_FOUND: usize = usize::MAX;
 
@@ -48,7 +52,7 @@ impl CachedConVar {
         }
 
         let vtable = unsafe { *(cvar as *const *const *const c_void) };
-        let raw = unsafe { *vtable.add(ICVAR_FIND_COMMAND_SLOT) };
+        let raw = unsafe { *vtable.add(provider().icvar_find_command_slot()) };
         if raw.is_null() {
             return 0;
         }
@@ -73,7 +77,7 @@ impl CachedConVar {
             return default;
         }
 
-        unsafe { *((ptr + CONVAR_FLOAT_VALUE_OFF) as *const f32) }
+        unsafe { *((ptr + provider().convar_float_value_off()) as *const f32) }
     }
 
     #[inline]
@@ -83,7 +87,7 @@ impl CachedConVar {
             return default;
         }
 
-        unsafe { *((ptr + CONVAR_INT_VALUE_OFF) as *const i32) }
+        unsafe { *((ptr + provider().convar_int_value_off()) as *const i32) }
     }
 
     pub fn set_string(&self, val: &str) {
@@ -93,7 +97,8 @@ impl CachedConVar {
         }
         if let Ok(cs) = CString::new(val) {
             unsafe {
-                let f: SetStrFn = std::mem::transmute(vtable_slot(obj, CONVAR_SET_STRING_ROW));
+                let f: SetStrFn =
+                    std::mem::transmute(vtable_slot(obj, provider().convar_set_string_row()));
                 f(obj as *mut c_void, cs.as_ptr());
             }
         }
@@ -107,7 +112,8 @@ impl CachedConVar {
         let obj = self.resolve();
         if obj != 0 {
             unsafe {
-                let f: SetF32Fn = std::mem::transmute(vtable_slot(obj, CONVAR_SET_FLOAT_ROW));
+                let f: SetF32Fn =
+                    std::mem::transmute(vtable_slot(obj, provider().convar_set_float_row()));
                 f(obj as *mut c_void, val);
             }
         }
@@ -117,7 +123,8 @@ impl CachedConVar {
         let obj = self.resolve();
         if obj != 0 {
             unsafe {
-                let f: SetI32Fn = std::mem::transmute(vtable_slot(obj, CONVAR_SET_INT_ROW));
+                let f: SetI32Fn =
+                    std::mem::transmute(vtable_slot(obj, provider().convar_set_int_row()));
                 f(obj as *mut c_void, val);
             }
         }
@@ -174,10 +181,15 @@ impl MoveSpeed {
 }
 
 pub fn get_move_speed() -> MoveSpeed {
+    let speed = if engine_build::current_build() == EngineBuild::Project2008 {
+        275.0
+    } else {
+        175.0
+    };
     MoveSpeed {
-        forward: CL_FORWARDSPEED.float_or(175.0).clamp(0.0, 175.0),
-        side: CL_SIDESPEED.float_or(175.0).clamp(0.0, 175.0),
-        back: CL_BACKSPEED.float_or(175.0).clamp(0.0, 175.0),
+        forward: CL_FORWARDSPEED.float_or(speed).clamp(0.0, speed),
+        side: CL_SIDESPEED.float_or(speed).clamp(0.0, speed),
+        back: CL_BACKSPEED.float_or(speed).clamp(0.0, speed),
     }
 }
 

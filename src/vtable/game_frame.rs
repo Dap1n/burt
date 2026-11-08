@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicI32, Ordering};
 use crate::{
     bridge::vtable::is_simulating,
     commands::run::{rec, state},
+    engine_build::{self, EngineBuild},
     game::engine_input,
     vtable::level_init::IN_LOAD,
 };
@@ -36,10 +37,12 @@ pub fn game_frame() {
         return;
     }
 
-    if state::no_vault() {
-        SKIP_COUNTDOWN.store(70, Ordering::Relaxed);
-    } else {
-        SKIP_COUNTDOWN.store(0, Ordering::Relaxed);
+    if engine_build::current_build() == EngineBuild::July2009 {
+        if state::no_vault() {
+            SKIP_COUNTDOWN.store(70, Ordering::Relaxed);
+        } else {
+            SKIP_COUNTDOWN.store(0, Ordering::Relaxed);
+        }
     }
 
     let map = rec::CURRENT_MAP.read().unwrap();

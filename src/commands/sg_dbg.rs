@@ -11,7 +11,7 @@ use crate::{
             render_view::{self, RenderViewArgs},
         },
         math::*,
-        offsets::*,
+        offsets_provider::provider,
         player,
     },
 };
@@ -100,14 +100,16 @@ fn on_render(args: &mut RenderViewArgs) {
 
     let (tx, ty, tz) = apply_portal_matrix(&mat, input_pos);
     unsafe {
-        *f.add(CVIEWSETUP_ORIGIN_OFF / 4) = tx;
-        *f.add(CVIEWSETUP_ORIGIN_OFF / 4 + 1) = ty;
-        *f.add(CVIEWSETUP_ORIGIN_OFF / 4 + 2) = tz;
+        let origin_off = provider().cviewsetup_origin_off();
+        *f.add(origin_off / 4) = tx;
+        *f.add(origin_off / 4 + 1) = ty;
+        *f.add(origin_off / 4 + 2) = tz;
     }
 
-    let cp = unsafe { *f.add(CVIEWSETUP_ANGLES_OFF / 4) };
-    let cy = unsafe { *f.add(CVIEWSETUP_ANGLES_OFF / 4 + 1) };
-    let cr = unsafe { *f.add(CVIEWSETUP_ANGLES_OFF / 4 + 2) };
+    let angles_off = provider().cviewsetup_angles_off();
+    let cp = unsafe { *f.add(angles_off / 4) };
+    let cy = unsafe { *f.add(angles_off / 4 + 1) };
+    let cr = unsafe { *f.add(angles_off / 4 + 2) };
 
     let (fwd, rgt, up) = angle_vectors_full(cp, cy, cr);
     let fwd_t = rotate_vec3(&mat, fwd);
@@ -116,12 +118,12 @@ fn on_render(args: &mut RenderViewArgs) {
 
     let (np, ny, nr) = reconstruct_angles(fwd_t, rgt_t, up_t);
     unsafe {
-        *f.add(CVIEWSETUP_ANGLES_OFF / 4) = np;
-        *f.add(CVIEWSETUP_ANGLES_OFF / 4 + 1) = ny;
-        *f.add(CVIEWSETUP_ANGLES_OFF / 4 + 2) = nr;
+        *f.add(angles_off / 4) = np;
+        *f.add(angles_off / 4 + 1) = ny;
+        *f.add(angles_off / 4 + 2) = nr;
     }
 
-    args.a3 &= !RENDERVIEW_DRAWVIEWMODEL;
+    args.a3 &= !provider().renderview_drawviewmodel();
 }
 
 /// Overrides camera to visualize ghost/body during Save Glitch.

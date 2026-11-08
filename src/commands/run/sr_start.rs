@@ -4,6 +4,7 @@ use crate::{
     cexec, clog,
     commands::run::state::{self, RunState},
     consts::SPEEDRUN_FOLDER_FORMAT,
+    engine_build::{self, EngineBuild},
     log,
     os::format_local_time,
     structs::Color,
@@ -14,7 +15,8 @@ use burt_command::burt_command;
 ///
 /// `use_vault_save:` whether to use vault save or start a fresh new game
 ///   - If not provided, tries to fetch `vault.sav`, and if not found, falls back to map load
-///   - If new game is being started, intro video will be automatically skipped by emulating `enter` keypress
+///   - If new game is being started, intro video in July 2009 build will be automatically
+///     skipped by emulating `enter` keypress
 #[burt_command]
 pub fn burt_sr_start(use_vault_save: Option<bool>) {
     if state::is_recording() {
@@ -22,8 +24,16 @@ pub fn burt_sr_start(use_vault_save: Option<bool>) {
         return;
     }
 
+    let current_build = engine_build::current_build();
+
+    let parent_name = if current_build == EngineBuild::Project2008 {
+        "p2008"
+    } else {
+        "portal2"
+    };
+
     let vault_save_exists: Option<bool> = use_vault_save.unwrap_or(true).then(|| {
-        fs::read_dir("portal2/SAVE")
+        fs::read_dir(format!("{parent_name}/SAVE"))
             .ok()
             .map(|rd| {
                 rd.filter_map(|x| x.ok())
@@ -46,11 +56,11 @@ pub fn burt_sr_start(use_vault_save: Option<bool>) {
 
     clog!(prefix;
         [Color::WHITE => "Recording to "],
-        [Color::LIME => "portal2/records/{folder}"],
+        [Color::LIME => "{parent_name}/records/{folder}"],
     );
     log!("[sr_start] Recording demos to {folder}");
 
-    let _ = fs::create_dir(format!("portal2/records/{folder}"));
+    let _ = fs::create_dir(format!("{parent_name}/records/{folder}"));
 
     let with_vault_save = vault_save_exists.unwrap_or_default();
     *state::RUN_STATE.write().unwrap() = RunState::Speedrun {
@@ -60,6 +70,8 @@ pub fn burt_sr_start(use_vault_save: Option<bool>) {
 
     if with_vault_save {
         cexec!("load vault");
+    } else if current_build == EngineBuild::Project2008 {
+        cexec!("map lab_intro");
     } else {
         cexec!("map p2_lab_prehub_1");
     }

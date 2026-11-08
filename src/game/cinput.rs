@@ -2,26 +2,43 @@ use std::sync::atomic::{AtomicU8, Ordering};
 
 use crate::{
     commands::tas::HeldButtons,
-    game::{modules, offsets::*, signatures},
+    engine_build::{self, EngineBuild},
+    game::{modules, offsets_provider::provider, signatures},
 };
 
 pub static HELD_BUTTONS: AtomicU8 = AtomicU8::new(0);
 
 #[derive(Copy, Clone)]
-#[repr(u32)]
 pub enum Action {
-    Attack = 0x106,
-    Duck = 0x150,
-    Jump = 0x19A,
-    Use = 0x278,
-    Attack2 = 0x3FE,
-    Slowtime = 0x6CE,
+    Attack,
+    Duck,
+    Jump,
+    Use,
+    Attack2,
+    Slowtime,
 }
 
 impl Action {
-    #[inline]
-    pub const fn offset(self) -> usize {
-        self as usize
+    pub fn offset(self) -> usize {
+        if engine_build::current_build() == EngineBuild::Project2008 {
+            match self {
+                Action::Attack => 0x112,
+                Action::Duck => 0x15D,
+                Action::Jump => 0x1A8,
+                Action::Use => 0x289,
+                Action::Attack2 => 0x40D,
+                Action::Slowtime => panic!("Requested slowtime outside july 2009 build"),
+            }
+        } else {
+            match self {
+                Action::Attack => 0x106,
+                Action::Duck => 0x150,
+                Action::Jump => 0x19A,
+                Action::Use => 0x278,
+                Action::Attack2 => 0x3FE,
+                Action::Slowtime => 0x6CE,
+            }
+        }
     }
 
     #[inline]
@@ -51,9 +68,9 @@ impl Action {
 
     #[inline]
     unsafe fn get_addr(&self, slot: usize) -> usize {
-        let func_addr = modules::get_addr(modules::client(), GET_BUTTON_BITS_SIG);
+        let func_addr = modules::get_addr(modules::client(), provider().get_button_bits_sig());
         let array_base = unsafe { signatures::read_abs_addr(func_addr + self.offset()) };
-        array_base + slot * BUTTON_STATE_STRIDE
+        array_base + slot * provider().button_state_stride()
     }
 
     pub fn press(&self, slot: usize) {
@@ -73,9 +90,12 @@ impl Action {
     }
 }
 
-pub const unsafe fn inject_mouse_delta(cinput: *mut u8, dx: f32, dy: f32) {
+pub unsafe fn inject_mouse_delta(cinput: *mut u8, dx: f32, dy: f32) {
     unsafe {
-        let base = cinput.add(CINPUT_SLOT * CINPUT_SLOT_STRIDE + CINPUT_MOUSE_OFF_IN_SLOT);
+        let base = cinput.add(
+            provider().cinput_slot() * provider().cinput_slot_stride()
+                + provider().cinput_mouse_off_in_slot(),
+        );
         *(base as *mut f32) = dx;
         *(base.add(4) as *mut f32) = dy;
     }

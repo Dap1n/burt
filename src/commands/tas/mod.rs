@@ -35,7 +35,7 @@ use crate::{
             input_filter,
             process_cmd::{self, ProcessCmdArgs, schedule_movement},
         },
-        offsets::{CINPUT_MOUSE_ACTIVE_OFF, CUSERCMD_SEQUENCE_NUMBER_OFF},
+        offsets_provider::provider,
         player,
     },
     statics::ENGINE,
@@ -69,9 +69,9 @@ pub static LAST_M_YAW: AtomicF32 = AtomicF32::new(0.022);
 pub static LAST_M_PITCH: AtomicF32 = AtomicF32::new(0.022);
 pub static LAST_CL_PITCHUP: AtomicF32 = AtomicF32::new(89.0);
 pub static LAST_CL_PITCHDOWN: AtomicF32 = AtomicF32::new(89.0);
-pub static LAST_CL_FORWARDSPEED: AtomicF32 = AtomicF32::new(175.0);
-pub static LAST_CL_SIDESPEED: AtomicF32 = AtomicF32::new(175.0);
-pub static LAST_CL_BACKSPEED: AtomicF32 = AtomicF32::new(175.0);
+pub static LAST_CL_FORWARDSPEED: AtomicF32 = AtomicF32::new(450.0);
+pub static LAST_CL_SIDESPEED: AtomicF32 = AtomicF32::new(450.0);
+pub static LAST_CL_BACKSPEED: AtomicF32 = AtomicF32::new(450.0);
 pub static LAST_MAT_MOTION_BLUR: AtomicBool = AtomicBool::new(true);
 pub static LAST_JOYSTICK: AtomicBool = AtomicBool::new(true);
 
@@ -390,7 +390,7 @@ pub fn on_create_move(args: &mut CreateMoveArgs) {
 
     unsafe {
         // force m_fMouseActive to true so AdjustAngles runs
-        let mouse_active_ptr = (args.this as *mut u8).add(CINPUT_MOUSE_ACTIVE_OFF);
+        let mouse_active_ptr = (args.this as *mut u8).add(provider().cinput_mouse_active_off());
         if *mouse_active_ptr == 0 {
             *mouse_active_ptr = 1;
         }
@@ -499,7 +499,7 @@ pub fn on_process_cmd(args: &mut ProcessCmdArgs) {
     if IN_LOAD.load(Ordering::Relaxed) || !is_simulating() {
         return;
     }
-    let seq = unsafe { *(args.cmd.add(CUSERCMD_SEQUENCE_NUMBER_OFF) as *const i32) };
+    let seq = unsafe { *(args.cmd.add(provider().cusercmd_sequence_number_off()) as *const i32) };
     if seq != LAST_SEQ_NUM.load(Ordering::Relaxed) {
         return;
     };

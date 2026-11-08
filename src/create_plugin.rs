@@ -5,12 +5,16 @@ use std::{
 };
 
 use crate::{
-    bridge::{MyPlugin, console},
+    bridge::{BurtPlugin, console},
+    clog,
     consts::CRASH_FORMAT,
+    engine_build::{self, EngineBuild},
+    game::{modules, offsets_provider},
     log,
     os::format_local_time,
     panic_handler,
     statics::*,
+    structs::Color,
 };
 
 fn manage_crash_reports() {
@@ -37,28 +41,49 @@ fn manage_crash_reports() {
             .and_then(|x| x.created())
             .unwrap_or(SystemTime::UNIX_EPOCH)
     });
-    for entry in entries.iter().take(entries.len().saturating_sub(5)) {
-        let _ = fs::remove_file(entry.path());
-    }
+    entries
+        .iter()
+        .take(entries.len().saturating_sub(5))
+        .for_each(|entry| {
+            let _ = fs::remove_file(entry.path());
+        });
 }
 
-pub fn create_plugin(requested_name: &str) -> Option<*mut MyPlugin> {
-    log!("Engine requested interface: {requested_name}");
-
-    if !requested_name.starts_with("ISERVERPLUGINCALLBACKS") {
+pub fn create_plugin(requested_name: &str) -> Option<*mut BurtPlugin> {
+    if requested_name != "ISERVERPLUGINCALLBACKS003" {
         return None;
     }
 
+    let _ = CON_COLOR_MSG_FN
+        .get_or_init(|| console::get_con_color_msg().expect("Failed to find game console"));
+
+    modules::init();
+
+    let Some(build) = EngineBuild::get_current() else {
+        clog!(err_prefix; "Unknown build! Aborting...");
+        return None;
+    };
+    clog!(prefix;
+        [Color::WHITE => "Build: "],
+        [Color::YELLOW => "{} ({})", build.name(), build.tag()],
+    );
+    if !offsets_provider::init_active_build(build) {
+        clog!(err_prefix; "This build is not supported yet");
+        return None;
+    }
+    engine_build::save(build);
+
     manage_crash_reports();
-    let _ = fs::create_dir("portal2/records");
 
-    CON_COLOR_MSG_FN
-        .set(console::get_con_color_msg().expect("Failed to find game console"))
-        .unwrap();
+    let instance = if build == EngineBuild::Project2008 {
+        let _ = fs::create_dir("p2008/records");
+        BurtPlugin::new(&ALIEN_SWARM_VTABLE)
+    } else {
+        let _ = fs::create_dir("portal2/records");
+        BurtPlugin::new(&JULY_2009_VTABLE)
+    };
 
-    let instance = MyPlugin::new(&VTABLE);
-    let ptr = PLUGIN_INSTANCE.get_or_init(|| instance) as *const MyPlugin as *mut MyPlugin;
-
+    let ptr = PLUGIN_INSTANCE.get_or_init(|| instance) as *const BurtPlugin as *mut BurtPlugin;
     log!("Plugin instance pointer returned");
     Some(ptr)
 }

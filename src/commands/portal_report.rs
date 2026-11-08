@@ -1,6 +1,6 @@
 use crate::{
     clog,
-    game::{entity, math::*, offsets::*, player},
+    game::{entity, math::*, offsets_provider::provider, player},
     structs::Color,
 };
 use burt_command::burt_command;
@@ -8,7 +8,7 @@ use burt_command::burt_command;
 const PORTAL_SURFACE_DEPTH: f32 = -32.0;
 
 pub unsafe fn resolve_handle(handle: u32) -> *const u8 {
-    if handle == 0xFFFF_FFFF {
+    if handle == 0xFFFF_FFFF || handle == 0 {
         return std::ptr::null();
     }
     let index = (handle & 0xFFFF) as i32;
@@ -17,16 +17,16 @@ pub unsafe fn resolve_handle(handle: u32) -> *const u8 {
         if edict.is_null() {
             return std::ptr::null();
         }
-        *((edict as *const u8).add(EDICT_PORTAL_INTERNAL_OFF) as *const *const u8)
+        *((edict as *const u8).add(provider().edict_portal_internal_off()) as *const *const u8)
     }
 }
 
-pub const unsafe fn read_portal_origin(ent: *const u8) -> Vec3 {
+pub unsafe fn read_portal_origin(ent: *const u8) -> Vec3 {
     unsafe {
         (
-            *(ent.add(PORTAL_ORIGIN_X) as *const f32),
-            *(ent.add(PORTAL_ORIGIN_Y) as *const f32),
-            *(ent.add(PORTAL_ORIGIN_Z) as *const f32),
+            *(ent.add(provider().portal_origin_x()) as *const f32),
+            *(ent.add(provider().portal_origin_y()) as *const f32),
+            *(ent.add(provider().portal_origin_z()) as *const f32),
         )
     }
 }
@@ -44,12 +44,12 @@ pub unsafe fn read_portal_surface(ent: *const u8) -> Vec3 {
     }
 }
 
-pub const unsafe fn read_portal_angles(ent: *const u8) -> Vec3 {
+pub unsafe fn read_portal_angles(ent: *const u8) -> Vec3 {
     unsafe {
         (
-            *(ent.add(PORTAL_PITCH) as *const f32),
-            *(ent.add(PORTAL_YAW) as *const f32),
-            *(ent.add(PORTAL_ROLL) as *const f32),
+            *(ent.add(provider().portal_pitch()) as *const f32),
+            *(ent.add(provider().portal_yaw()) as *const f32),
+            *(ent.add(provider().portal_roll()) as *const f32),
         )
     }
 }
@@ -58,10 +58,8 @@ pub unsafe fn find_linked(current: *const u8) -> *const u8 {
     if current.is_null() {
         return std::ptr::null();
     }
-    unsafe {
-        let h = *(current.add(PORTAL_H_LINKED) as *const u32);
-        resolve_handle(h)
-    }
+
+    unsafe { resolve_handle(*(current.add(provider().portal_h_linked()) as *const u32)) }
 }
 
 /// Reports positions and angles of portals you're currently inside.

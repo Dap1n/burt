@@ -452,6 +452,7 @@ pub fn burt_autocomplete(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let writer_name = &writer_arg.pat;
 
     let expanded = quote! {
+        #[inline]
         fn #impl_fn_name(#partial_name: String, #writer_name: &mut AutocompleteWriter) {
             #(#stmts)*
         }

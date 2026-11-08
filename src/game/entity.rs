@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::{
-    game::{math::Vec3, offsets::*, signatures::get_pentity_addr},
+    game::{math::Vec3, offsets_provider::provider, signatures::get_pentity_addr},
     os::*,
 };
 
@@ -39,7 +39,7 @@ pub unsafe fn resolve_handle(handle: u32) -> Option<(*const u8, u32)> {
 
     let (_, ent) = unsafe { edict_entity_by_index(entry as i32)? };
 
-    let ent_ref_handle = unsafe { *(ent.add(ENTITY_M_REF_EHANDLE_OFF) as *const u32) };
+    let ent_ref_handle = unsafe { *(ent.add(provider().entity_m_ref_ehandle_off()) as *const u32) };
     let ent_serial = ent_ref_handle >> NUM_ENT_ENTRY_BITS;
     (ent_serial == serial).then_some((ent, serial))
 }
@@ -107,21 +107,23 @@ pub unsafe fn edict_entity_by_name(name: &str, index: i32) -> Option<(*mut edict
 }
 
 #[inline]
-pub const unsafe fn entity_from_edict(edict: *const edict_t) -> *const u8 {
+pub unsafe fn entity_from_edict(edict: *const edict_t) -> *const u8 {
     unsafe {
-        *((edict as *const c_void as *const u8).add(EDICT_BASE_ENTITY_OFF) as *const *const u8)
+        *((edict as *const c_void as *const u8).add(provider().edict_base_entity_off())
+            as *const *const u8)
     }
 }
 
 pub unsafe fn entity_origin(ent: *const u8) -> Option<Vec3> {
-    if !mem_ok(ent as usize + ENTITY_ORIGIN_OFF, 12) {
+    if !mem_ok(ent as usize + provider().entity_origin_off(), 12) {
         return None;
     }
+    let origin_off = provider().entity_origin_off();
     unsafe {
         Some((
-            *(ent.add(ENTITY_ORIGIN_OFF) as *const f32),
-            *(ent.add(ENTITY_ORIGIN_OFF + 4) as *const f32),
-            *(ent.add(ENTITY_ORIGIN_OFF + 8) as *const f32),
+            *(ent.add(origin_off) as *const f32),
+            *(ent.add(origin_off + 4) as *const f32),
+            *(ent.add(origin_off + 8) as *const f32),
         ))
     }
 }
@@ -133,11 +135,7 @@ unsafe fn read_cstr_field(ent: *const u8, offset: usize) -> Option<String> {
 
     let ptr = unsafe { *(ent.add(offset) as *const *const c_char) };
 
-    if ptr.is_null() {
-        return None;
-    }
-
-    if !mem_ok(ptr as usize, 2) {
+    if ptr.is_null() || !mem_ok(ptr as usize, 2) {
         return None;
     }
 
@@ -149,10 +147,10 @@ unsafe fn read_cstr_field(ent: *const u8, offset: usize) -> Option<String> {
 
 #[inline]
 pub unsafe fn entity_name(ent: *const u8) -> Option<String> {
-    unsafe { read_cstr_field(ent, ENTITY_NAME_OFF) }
+    unsafe { read_cstr_field(ent, provider().entity_name_off()) }
 }
 
 #[inline]
 pub unsafe fn entity_classname(ent: *const u8) -> Option<String> {
-    unsafe { read_cstr_field(ent, ENTITY_CLASSNAME_OFF) }
+    unsafe { read_cstr_field(ent, provider().entity_classname_off()) }
 }

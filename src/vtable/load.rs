@@ -3,8 +3,7 @@ use std::{mem, os::raw::c_void};
 use crate::{
     bridge::{self, commands::CreateInterfaceFn, invoke::EngineServer},
     clog,
-    engine_build::EngineBuild,
-    game::{hooks, modules},
+    game::hooks,
     log,
     statics::ENGINE,
     structs::Color,
@@ -20,22 +19,6 @@ pub fn load(interface_factory: *const c_void) -> Successful {
         return false;
     }
 
-    modules::init();
-
-    if let Some(build) = EngineBuild::get_current() {
-        clog!(prefix;
-            [Color::WHITE => "Build: "],
-            [Color::YELLOW => "{} ({})", build.name(), build.number()],
-        );
-        if build != EngineBuild::July2009 {
-            clog!(err_prefix; "This build is not supported yet");
-            return false;
-        }
-    } else {
-        clog!(err_prefix; "Unknown build! Aborting...");
-        return false;
-    }
-
     let factory: CreateInterfaceFn = unsafe { mem::transmute(interface_factory) };
 
     let Some(engine) = (unsafe { EngineServer::from_factory(factory) }) else {
@@ -43,7 +26,7 @@ pub fn load(interface_factory: *const c_void) -> Successful {
         return false;
     };
 
-    ENGINE.set(engine).unwrap();
+    let _ = ENGINE.set(engine);
 
     bridge::commands::register_plugin_commands(factory);
     hooks::install_all();

@@ -1,6 +1,7 @@
 use crate::{
     cexec, clog,
     commands::run::state::{self, RunState},
+    engine_build::{self, EngineBuild},
     log,
     structs::Color,
 };
@@ -27,13 +28,19 @@ pub fn stop_internal(automatic: bool) {
 
     cexec!("stop");
 
+    let parent_name = if engine_build::current_build() == EngineBuild::Project2008 {
+        "p2008"
+    } else {
+        "portal2"
+    };
+
     clog!(prefix;
         [Color::WHITE => "{}", if automatic {
             "Ending screen was reached, speedrun is over. Recorded to "
         } else {
             "Speedrun is stopped. Recorded to "
         }],
-        [Color::LIME => "portal2/records/{folder_name}"],
+        [Color::LIME => "{parent_name}/records/{folder_name}"],
     );
 }
 

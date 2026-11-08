@@ -2,7 +2,7 @@ use std::sync::OnceLock;
 
 use crate::{
     define_get_addr,
-    game::{modules, offsets::*},
+    game::{modules, offsets_provider::provider},
 };
 
 static ACCUMULATOR_ADDR: OnceLock<usize> = OnceLock::new();
@@ -10,19 +10,19 @@ static ACCUMULATOR_ADDR: OnceLock<usize> = OnceLock::new();
 define_get_addr!(
     PENTITY_ADDR,
     get_pentity_addr,
-    PENTITY_SIG,
+    p_entity_sig,
     modules::engine(),
 );
 define_get_addr!(
     KEY_EVENT_ADDR,
     get_key_event_addr,
-    KEY_EVENT_SIG,
+    key_event_sig,
     modules::engine(),
 );
 define_get_addr!(
     HOST_FILTER_TIME_ADDR,
     get_host_filter_time_addr,
-    HOST_FILTER_TIME_SIG,
+    host_filter_time_sig,
     modules::engine(),
 );
 
@@ -33,10 +33,9 @@ pub unsafe fn read_abs_addr(addr: usize) -> usize {
 
 pub fn get_key_bindings_addr() -> usize {
     let key_event_addr = get_key_event_addr();
-
     unsafe {
-        // Subtract 4 to get the start of the array
-        read_abs_addr(key_event_addr + KEY_BINDINGS_OFFSET) - 4
+        read_abs_addr(key_event_addr + provider().key_bindings_offset())
+            - provider().key_bindings_base_offset()
     }
 }
 
@@ -45,13 +44,13 @@ pub fn get_filtered_frametime_addr() -> usize {
 
     unsafe {
         // ADDSS instruction: F3 0F 58 05 [ADDR]
-        read_abs_addr(filter_time_addr + HOST_FILTERED_FRAMETIME_OFFSET + 4)
+        read_abs_addr(filter_time_addr + provider().host_filtered_frametime_offset() + 4)
     }
 }
 
 pub fn get_accumulator_addr() -> usize {
     *ACCUMULATOR_ADDR.get_or_init(|| {
-        let instruction_addr = modules::get_addr(modules::engine(), ACCUMULATOR_SIG);
+        let instruction_addr = modules::get_addr(modules::engine(), provider().accumulator_sig());
         unsafe { read_abs_addr(instruction_addr + 4) }
     })
 }
