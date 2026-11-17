@@ -52,11 +52,17 @@ unsafe extern "cdecl" fn dispatch(frametime: f32) {
         VirtualProtect(target as *const c_void, 5, old, &mut old);
     }
 
+    let in_tas = SESSION_COUNTER.load(Ordering::Relaxed) == 1;
+
+    if in_tas {
+        let accumulator = get_accumulator_addr() as *mut f32;
+        unsafe {
+            *accumulator = 0.0;
+        }
+    }
+
     let skip_to = BVAR_TAS_SKIP_TO.load(Ordering::Relaxed);
-    if SESSION_COUNTER.load(Ordering::Relaxed) == 1
-        && skip_to != 0
-        && TICK.load(Ordering::Relaxed) <= skip_to
-    {
+    if in_tas && skip_to != 0 && TICK.load(Ordering::Relaxed) <= skip_to {
         return;
     }
 
@@ -67,11 +73,13 @@ unsafe extern "cdecl" fn dispatch(frametime: f32) {
             })
             .unwrap_or_default();
 
-        let accumulator = get_accumulator_addr() as *mut f32;
         let filtered_frametime = get_filtered_frametime_addr() as *mut f32;
 
         unsafe {
-            *accumulator = 0.0;
+            if !in_tas {
+                let accumulator = get_accumulator_addr() as *mut f32;
+                *accumulator = 0.0;
+            }
             if prev > 0 {
                 *filtered_frametime = TICKTIME;
             } else {
