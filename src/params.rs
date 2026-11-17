@@ -1,4 +1,7 @@
-use crate::structs::{Color, Coordinates, Easing, TargetEntity};
+use crate::{
+    commands::p2008::scale::ScaleStep,
+    structs::{Color, Coordinates, Easing, TargetEntity},
+};
 
 pub trait BurtParam: Sized {
     fn from_input(input: &str) -> Result<Self, &'static str>;
@@ -193,6 +196,43 @@ impl BurtParam for TargetEntity {
                 name: Some(name.into()),
                 index: 0,
             }),
+        }
+    }
+}
+
+impl BurtParam for ScaleStep {
+    fn from_input(input: &str) -> Result<Self, &'static str> {
+        if let Ok(step) = input.parse() {
+            return Ok(Self::Exact(step));
+        }
+        match input {
+            "min" => return Ok(Self::Min),
+            "max" => return Ok(Self::Max),
+            _ => (),
+        }
+        let Some(count) = input
+            .strip_prefix("up")
+            .or_else(|| input.strip_prefix("down"))
+        else {
+            return Err("expects a parseable signed 32-bit integer, min/max or up/down");
+        };
+        if count.is_empty() {
+            if input.starts_with("up") {
+                return Ok(Self::Relative(1));
+            } else {
+                return Ok(Self::Relative(-1));
+            }
+        }
+        let Ok(n @ 1..) = count
+            .trim_matches(|c: char| c.is_whitespace() || c.is_ascii_punctuation())
+            .parse()
+        else {
+            return Err("expects a parseable signed 32-bit non-zero integer after up/down");
+        };
+        if input.starts_with("up") {
+            Ok(Self::Relative(n))
+        } else {
+            Ok(Self::Relative(-n))
         }
     }
 }

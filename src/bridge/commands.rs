@@ -5,7 +5,7 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-use crate::{clog, elog, log};
+use crate::{clog, elog, engine_build, log};
 
 pub type CreateInterfaceFn =
     unsafe extern "cdecl" fn(p_name: *const c_char, p_return_code: *mut c_int) -> *mut c_void;
@@ -230,7 +230,7 @@ pub fn register_plugin_commands(interface_factory: CreateInterfaceFn) {
     if cvar_ptr.is_null() {
         elog!("VEngineCvar007 interface failed to obtain");
         clog!(err_prefix;
-            "ERROR: Failed to obtain VEngineCvar007 interface! \
+            "Failed to obtain VEngineCvar007 interface! \
             Commands will be unavailable"
         );
         return;
@@ -257,13 +257,17 @@ pub fn register_plugin_commands(interface_factory: CreateInterfaceFn) {
     if native_vtable.is_null() {
         elog!("Native ConCommand VTable not found");
         clog!(err_prefix;
-            "ERROR: Could not locate native ConCommand VTable in memory! \
+            "Could not locate native ConCommand VTable in memory! \
             Commands will be unavailable"
         );
         return;
     }
 
-    for sync_cmd in &crate::commands::PLUGIN_COMMANDS {
+    let curr_build_index = engine_build::current_build() as usize;
+    for (sync_cmd, builds) in &crate::commands::PLUGIN_COMMANDS {
+        if builds[curr_build_index].is_none() {
+            continue;
+        }
         let cmd_ptr = sync_cmd.get();
         unsafe {
             (*cmd_ptr).vtable = native_vtable;
@@ -294,7 +298,11 @@ pub fn unregister_plugin_commands() {
         return;
     }
 
-    for sync_cmd in &crate::commands::PLUGIN_COMMANDS {
+    let curr_build_index = engine_build::current_build() as usize;
+    for (sync_cmd, builds) in &crate::commands::PLUGIN_COMMANDS {
+        if builds[curr_build_index].is_none() {
+            continue;
+        }
         let cmd_ptr = sync_cmd.get();
 
         let unregister_fn: extern "thiscall" fn(*mut c_void, *mut ConCommand) = unsafe {

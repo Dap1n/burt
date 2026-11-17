@@ -9,7 +9,7 @@ use crate::{
     clog,
     consts::CRASH_FORMAT,
     engine_build::{self, EngineBuild},
-    game::{modules, offsets_provider},
+    game::{modules, provider},
     log,
     os::format_local_time,
     panic_handler,
@@ -67,8 +67,8 @@ pub fn create_plugin(requested_name: &str) -> Option<*mut BurtPlugin> {
         [Color::WHITE => "Build: "],
         [Color::YELLOW => "{} ({})", build.name(), build.tag()],
     );
-    if !offsets_provider::init_active_build(build) {
-        clog!(err_prefix; "This build is not supported yet");
+    if let Err(err) = provider::init_active_build(build) {
+        clog!(err_prefix; "{err}");
         return None;
     }
     engine_build::save(build);

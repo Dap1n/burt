@@ -4,11 +4,7 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-use crate::{
-    bridge::commands::ICVAR,
-    engine_build::{self, EngineBuild},
-    game::offsets_provider::provider,
-};
+use crate::{bridge::commands::ICVAR, game::provider::provider};
 
 const NOT_FOUND: usize = usize::MAX;
 
@@ -24,6 +20,7 @@ unsafe fn vtable_slot(obj: usize, row: usize) -> *const c_void {
     }
 }
 
+#[derive(Debug)]
 pub struct CachedConVar {
     name: &'static CStr,
     ptr: AtomicUsize,
@@ -135,6 +132,7 @@ pub static SV_CHEATS: CachedConVar = CachedConVar::new(c"sv_cheats");
 pub static SV_FRICTION: CachedConVar = CachedConVar::new(c"sv_friction");
 pub static SV_STOPSPEED: CachedConVar = CachedConVar::new(c"sv_stopspeed");
 pub static SV_ACCELERATE: CachedConVar = CachedConVar::new(c"sv_accelerate");
+pub static SV_AIRACCELERATE: CachedConVar = CachedConVar::new(c"sv_airaccelerate");
 pub static SV_MAXSPEED: CachedConVar = CachedConVar::new(c"sv_maxspeed");
 pub static SV_MAXVELOCITY: CachedConVar = CachedConVar::new(c"sv_maxvelocity");
 
@@ -181,15 +179,11 @@ impl MoveSpeed {
 }
 
 pub fn get_move_speed() -> MoveSpeed {
-    let speed = if engine_build::current_build() == EngineBuild::Project2008 {
-        275.0
-    } else {
-        175.0
-    };
+    let move_speed = provider().move_speed();
     MoveSpeed {
-        forward: CL_FORWARDSPEED.float_or(speed).clamp(0.0, speed),
-        side: CL_SIDESPEED.float_or(speed).clamp(0.0, speed),
-        back: CL_BACKSPEED.float_or(speed).clamp(0.0, speed),
+        forward: CL_FORWARDSPEED.float_or(move_speed).clamp(0.0, move_speed),
+        side: CL_SIDESPEED.float_or(move_speed).clamp(0.0, move_speed),
+        back: CL_BACKSPEED.float_or(move_speed).clamp(0.0, move_speed),
     }
 }
 

@@ -11,8 +11,8 @@ use crate::{
             render_view::{self, RenderViewArgs},
         },
         math::*,
-        offsets_provider::provider,
         player,
+        provider::provider,
     },
 };
 use burt_command::burt_command;

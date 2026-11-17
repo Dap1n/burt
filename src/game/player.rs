@@ -1,6 +1,9 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::{
+    mem,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
-use crate::game::{entity, math::Vec3, offsets_provider::provider};
+use crate::game::{entity, math::Vec3, provider::provider, signatures};
 
 pub const TICKTIME: f32 = 1.0 / 60.0;
 
@@ -131,4 +134,122 @@ pub unsafe fn get_held_object() -> Option<*const u8> {
     } else {
         None
     }
+}
+
+type FnScrollScale = unsafe extern "thiscall" fn(this: *const u8, direction: i32);
+
+pub fn execute_scaling(mut scale: i32) -> bool {
+    if scale == 0 {
+        return false;
+    }
+    let p = ptr();
+    if p.is_null() {
+        return false;
+    }
+
+    let weapon_handle = unsafe { *(p.add(provider().player_m_h_active_weapon()) as *const u32) };
+    if weapon_handle == 0xFFFF_FFFF || weapon_handle == 0 {
+        return false;
+    }
+
+    let Some((weapon_ent, _)) = (unsafe { entity::resolve_handle(weapon_handle) }) else {
+        return false;
+    };
+
+    let scale_down = scale < 0;
+    if scale_down {
+        scale = -scale;
+    }
+    scale = scale.min(32);
+    let direction = if scale_down { 1 } else { -1 };
+    unsafe {
+        let scroll_scale: FnScrollScale = mem::transmute(signatures::get_scroll_scale_addr());
+        (0..scale).for_each(|_| scroll_scale(weapon_ent, direction))
+    }
+    true
+}
+
+#[derive(Debug, Clone)]
+pub struct CaptureReport {
+    pub entity: *const u8,
+    pub in_placement: bool,
+    pub current_step: i32,
+    pub multiplier: f32,
+    pub min_bound: i32,
+    pub max_bound: i32,
+}
+
+type FnGetBound = unsafe extern "thiscall" fn(this: *const u8, tracker: *const u8) -> i32;
+type FnGetScaleFloat =
+    unsafe extern "thiscall" fn(this: *const u8, step: i32, tracker: *const u8) -> f32;
+
+pub fn get_capture_report() -> Option<CaptureReport> {
+    let weapon_ent = {
+        let p = ptr();
+        if p.is_null() {
+            return None;
+        }
+
+        let weapon_handle =
+            unsafe { *(p.add(provider().player_m_h_active_weapon()) as *const u32) };
+        if weapon_handle == 0xFFFF_FFFF || weapon_handle == 0 {
+            return None;
+        }
+        unsafe { entity::resolve_handle(weapon_handle)?.0 }
+    };
+
+    let current_step = unsafe { *(weapon_ent.add(provider().entity_step_off()) as *const i32) };
+
+    let (multiplier, min_bound, max_bound) = {
+        let controller_ptr =
+            unsafe { *(weapon_ent.add(provider().entity_controller_off()) as *const *const u8) };
+        if controller_ptr.is_null() {
+            return None;
+        }
+
+        let vtable = unsafe { *(controller_ptr as *const *const usize) };
+        if vtable.is_null() {
+            return None;
+        }
+
+        let scale_func_ptr = unsafe { *vtable.add(provider().controller_scale_func_slot()) };
+        let min_func_ptr = unsafe { *vtable.add(provider().controller_min_func_slot()) };
+        let max_func_ptr = unsafe { *vtable.add(provider().controller_max_func_slot()) };
+
+        if min_func_ptr == 0 || max_func_ptr == 0 || scale_func_ptr == 0 {
+            return None;
+        }
+
+        let get_scale: FnGetScaleFloat = unsafe { std::mem::transmute(scale_func_ptr) };
+        let get_min: FnGetBound = unsafe { std::mem::transmute(min_func_ptr) };
+        let get_max: FnGetBound = unsafe { std::mem::transmute(max_func_ptr) };
+
+        let tracker_arg = unsafe { weapon_ent.add(provider().entity_tracker_off()) };
+
+        let scale = unsafe { get_scale(controller_ptr, current_step, tracker_arg) };
+        let min = unsafe { -get_min(controller_ptr, tracker_arg) };
+        let max = unsafe { get_max(controller_ptr, tracker_arg) };
+        (scale, min, max)
+    };
+
+    let entity = {
+        let captured_handle =
+            unsafe { *(weapon_ent.add(provider().entity_captured_handle_off()) as *const u32) };
+        if captured_handle == 0xFFFF_FFFF || captured_handle == 0 {
+            return None;
+        }
+        unsafe { entity::resolve_handle(captured_handle)?.0 }
+    };
+
+    let in_placement =
+        unsafe { *(weapon_ent.add(provider().entity_in_placement_off()) as *const i32) != 0 };
+
+    Some(CaptureReport {
+        entity,
+        in_placement,
+        current_step,
+        multiplier,
+        min_bound,
+        max_bound,
+    })
 }

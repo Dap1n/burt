@@ -18,13 +18,13 @@ use crate::{
         cvars::{CL_PITCHDOWN, CL_PITCHUP, deg_per_count_pitch, deg_per_count_yaw},
         hooks::process_cmd,
         math, modules,
-        offsets_provider::provider,
+        provider::provider,
     },
     log,
     os::*,
 };
 
-pub type CreateMoveFnP2008 = unsafe extern "thiscall" fn(*mut c_void, i32, u8);
+pub type CreateMoveFnP2008 = unsafe extern "thiscall" fn(*mut c_void, f32, u8);
 pub type CreateMoveFnJ2009 = unsafe extern "thiscall" fn(*mut c_void, i32, f32, u8);
 
 #[derive(Debug, Clone, PartialEq)]
@@ -72,16 +72,16 @@ fn dispatch_inner(this: *mut c_void, sequence_number: i32, frametime: f32, activ
         return;
     };
 
+    let mut old = 0u32;
+    let build = engine_build::current_build();
     unsafe {
-        let mut old = 0u32;
         VirtualProtect(target as *const c_void, 5, PAGE_EXECUTE_READWRITE, &mut old);
         ptr::copy_nonoverlapping(bytes.as_ptr(), target as *mut u8, 5);
         VirtualProtect(target as *const c_void, 5, old, &mut old);
 
-        let build = engine_build::current_build();
         if build == EngineBuild::Project2008 {
             if let Some(orig) = ORIG_FN_P2008.get() {
-                orig(args.this, args.sequence_number, args.active);
+                orig(args.this, frametime, args.active);
             }
         } else if let Some(orig) = ORIG_FN_J2009.get() {
             orig(args.this, args.sequence_number, frametime, args.active);
@@ -100,8 +100,8 @@ fn dispatch_inner(this: *mut c_void, sequence_number: i32, frametime: f32, activ
     }
 }
 
-unsafe extern "thiscall" fn dispatch_p2008(this: *mut c_void, sequence_number: i32, active: u8) {
-    dispatch_inner(this, sequence_number, 0.0, active);
+unsafe extern "thiscall" fn dispatch_p2008(this: *mut c_void, frametime: f32, active: u8) {
+    dispatch_inner(this, 0, frametime, active);
 }
 
 unsafe extern "thiscall" fn dispatch_j2009(
@@ -129,9 +129,9 @@ pub(super) unsafe fn install() {
             let _ = TARGET.set(target);
 
             if build == EngineBuild::Project2008 {
-                let _ = ORIG_FN_P2008.set(mem::transmute(target));
+                let _ = ORIG_FN_P2008.set(mem::transmute::<usize, CreateMoveFnP2008>(target));
             } else {
-                let _ = ORIG_FN_J2009.set(mem::transmute(target));
+                let _ = ORIG_FN_J2009.set(mem::transmute::<usize, CreateMoveFnJ2009>(target));
             }
         }
 

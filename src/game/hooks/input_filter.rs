@@ -136,9 +136,9 @@ pub(super) unsafe fn install() {
             let _ = TARGET.set(target);
 
             if build == EngineBuild::Project2008 {
-                let _ = ORIG_FN_P2008.set(mem::transmute(target));
+                let _ = ORIG_FN_P2008.set(mem::transmute::<usize, KeyEventFnP2008>(target));
             } else {
-                let _ = ORIG_FN_J2009.set(mem::transmute(target));
+                let _ = ORIG_FN_J2009.set(mem::transmute::<usize, KeyEventFnJ2009>(target));
             }
         }
 

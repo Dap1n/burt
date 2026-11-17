@@ -19,7 +19,7 @@ pub struct MEMORY_BASIC_INFORMATION {
 
 #[repr(C)]
 #[derive(Default)]
-pub struct SYSTEMTIME {
+pub struct Systemtime {
     pub w_year: u16,
     pub w_month: u16,
     pub w_day_of_week: u16,
@@ -45,11 +45,11 @@ unsafe extern "system" {
         dwLength: usize,
     ) -> usize;
 
-    pub fn GetLocalTime(lpSystemTime: *mut SYSTEMTIME);
+    pub fn GetLocalTime(lpSystemTime: *mut Systemtime);
 }
 
 pub fn format_local_time(fmt: &str) -> String {
-    let mut st = SYSTEMTIME::default();
+    let mut st = Systemtime::default();
     unsafe { GetLocalTime(&mut st) };
 
     let mut out = String::new();

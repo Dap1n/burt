@@ -1,12 +1,11 @@
 use pe_sigscan::pattern;
 
+use crate::game::{July2009, cinput::Action};
+
 use super::OffsetsProvider;
 
-/// Zero-sized type representing the Portal 2 July 2009 Beta build.
-pub struct July2009;
-
 impl OffsetsProvider for July2009 {
-    // --- client.dll RVAs ---
+    // --- client.dll Signatures ---
     fn cinput_create_move_sig(&self) -> &'static [Option<u8>] {
         pattern![
             0x83, 0xEC, 0x18, 0x55, 0x56, 0x57, 0x8B, 0xF9, 0x8B, 0x0D, _, _, _, _, 0x8B, 0x01,
@@ -37,7 +36,18 @@ impl OffsetsProvider for July2009 {
         ] // 0xF9710
     }
 
-    // --- server.dll RVAs ---
+    fn action_offset(&self, action: Action) -> (usize, usize) {
+        match action {
+            Action::Attack => (0x106, 0),
+            Action::Duck => (0x150, 0),
+            Action::Jump => (0x19A, 0),
+            Action::Use => (0x278, 0),
+            Action::Attack2 => (0x3FE, 0),
+            Action::Slowtime => (0x6CE, 0),
+        }
+    }
+
+    // --- server.dll Signatures ---
     fn physics_simulate_sig(&self) -> &'static [Option<u8>] {
         pattern![
             0x83, 0xEC, 0x28, 0x55, 0x57, 0x6A, 0x04, 0x33, 0xED, 0x55, 0x68, _, _, _, _, 0x55,
@@ -45,7 +55,11 @@ impl OffsetsProvider for July2009 {
         ] // 0x1C0920
     }
 
-    // --- engine.dll RVAs ---
+    fn scroll_scale_sig(&self) -> &'static [Option<u8>] {
+        unimplemented!() // Unique to F-Stop
+    }
+
+    // --- engine.dll Signatures ---
     fn p_entity_sig(&self) -> &'static [Option<u8>] {
         pattern![
             0x56, 0x8B, 0x74, 0x24, 0x08, 0x85, 0xF6, 0x7C, _, 0x3B, 0x35, _, _, _, _, 0x7C, _,
@@ -107,6 +121,9 @@ impl OffsetsProvider for July2009 {
     fn player_view_offset_off(&self) -> usize {
         0x340
     }
+    fn player_m_h_active_weapon(&self) -> usize {
+        unimplemented!() // not used in July 2009
+    }
     fn player_m_h_use_entity_off(&self) -> usize {
         0xB9C
     }
@@ -140,6 +157,33 @@ impl OffsetsProvider for July2009 {
     }
     fn entity_m_ref_ehandle_off(&self) -> usize {
         0x33C
+    }
+    // F-Stop camera-related
+    fn entity_tracker_off(&self) -> usize {
+        unimplemented!()
+    }
+    fn entity_captured_handle_off(&self) -> usize {
+        unimplemented!()
+    }
+    fn entity_controller_off(&self) -> usize {
+        unimplemented!()
+    }
+    fn entity_step_off(&self) -> usize {
+        unimplemented!()
+    }
+    fn entity_in_placement_off(&self) -> usize {
+        unimplemented!()
+    }
+
+    // --- Controller vtable Slots ---
+    fn controller_min_func_slot(&self) -> usize {
+        unimplemented!()
+    }
+    fn controller_max_func_slot(&self) -> usize {
+        unimplemented!()
+    }
+    fn controller_scale_func_slot(&self) -> usize {
+        unimplemented!()
     }
 
     // --- edict_t Offsets ---
@@ -213,6 +257,9 @@ impl OffsetsProvider for July2009 {
     // --- CInput Offsets ---
     fn cinput_slot(&self) -> usize {
         0
+    }
+    fn cinput_activate_mouse_slot(&self) -> usize {
+        18
     }
     fn cinput_mouse_active_off(&self) -> usize {
         0x6

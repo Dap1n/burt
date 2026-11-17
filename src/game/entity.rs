@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::{
-    game::{math::Vec3, offsets_provider::provider, signatures::get_pentity_addr},
+    game::{math::Vec3, provider::provider, signatures::get_pentity_addr},
     os::*,
 };
 

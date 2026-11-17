@@ -2,17 +2,18 @@ use std::sync::OnceLock;
 
 use crate::{bridge::pe, game::modules};
 
+pub const SUPPORTED_BUILDS_COUNT: usize = 2;
 static CURRENT_BUILD: OnceLock<u8> = OnceLock::new();
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EngineBuild {
-    Project2008,
-    July2009,
-    February2010,
-    March2010,
-    July2010,
-    August2010,
-    October2010,
+    Project2008 = 0,
+    July2009 = 1,
+    February2010 = 2,
+    March2010 = 3,
+    July2010 = 4,
+    August2010 = 5,
+    October2010 = 6,
 }
 
 impl EngineBuild {
@@ -29,7 +30,7 @@ impl EngineBuild {
         }
     }
 
-    pub fn name(&self) -> &'static str {
+    pub const fn name(&self) -> &'static str {
         match self {
             Self::Project2008 => "Project 2008",
             Self::July2009 => "July 2009",
@@ -41,7 +42,7 @@ impl EngineBuild {
         }
     }
 
-    pub fn tag(&self) -> &'static str {
+    pub const fn tag(&self) -> &'static str {
         match self {
             Self::Project2008 => "F-Stop",
             Self::July2009 => "852_0",
@@ -53,7 +54,20 @@ impl EngineBuild {
         }
     }
 
-    pub fn from_index(index: u8) -> Self {
+    pub const fn from_shorthand(s_utf8: &[u8]) -> Option<Self> {
+        match s_utf8 {
+            b"p2008" => Some(Self::Project2008),
+            b"j2009" => Some(Self::July2009),
+            b"f2010" => Some(Self::February2010),
+            b"m2010" => Some(Self::March2010),
+            b"j2010" => Some(Self::July2010),
+            b"a2010" => Some(Self::August2010),
+            b"o2010" => Some(Self::October2010),
+            _ => None,
+        }
+    }
+
+    pub const fn from_index(index: u8) -> Self {
         match index {
             0 => Self::Project2008,
             1 => Self::July2009,

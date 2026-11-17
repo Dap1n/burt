@@ -2,11 +2,17 @@ use std::sync::OnceLock;
 
 use crate::{
     define_get_addr,
-    game::{modules, offsets_provider::provider},
+    game::{modules, provider::provider},
 };
 
 static ACCUMULATOR_ADDR: OnceLock<usize> = OnceLock::new();
 
+define_get_addr!(
+    SCROLL_SCALE,
+    get_scroll_scale_addr,
+    scroll_scale_sig,
+    modules::server(),
+);
 define_get_addr!(
     PENTITY_ADDR,
     get_pentity_addr,

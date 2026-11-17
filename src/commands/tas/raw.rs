@@ -5,14 +5,17 @@ use std::{
     sync::RwLock,
 };
 
-use crate::commands::tas::{
-    HeldButtons,
-    parser::{Point2D, TasScript},
+use crate::{
+    commands::tas::{
+        HeldButtons,
+        parser::{Point2D, TasScript},
+    },
+    engine_build,
 };
 
-pub(super) static RAW_LOGGER: RwLock<Option<RawLogger>> = RwLock::new(None);
+pub static RAW_LOGGER: RwLock<Option<RawLogger>> = RwLock::new(None);
 
-pub(super) struct RawLogger {
+pub struct RawLogger {
     w: BufWriter<File>,
     last_written_tick: u32,
     current_tick: u32,
@@ -68,10 +71,11 @@ impl RawLogger {
         }
         if self.current_buttons != buttons {
             self.current_buttons = buttons;
-            write!(self.w, "{}", buttons)?;
+            let build = engine_build::current_build();
+            write!(self.w, "{}", buttons.to_string(build))?;
         }
         if let Some(commands) = commands {
-            writeln!(self.w, "|{}", commands)?;
+            writeln!(self.w, "|{commands}")?;
         } else {
             writeln!(self.w)?;
         }

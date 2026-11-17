@@ -9,6 +9,7 @@ mod decel;
 mod echo;
 mod exit;
 mod getpos_exact;
+pub mod p2008;
 mod portal_report;
 pub mod run;
 mod setang;
@@ -21,6 +22,7 @@ register_commands! {
     autoaim::burt_autoaim_entity => "Automatic aim at certain entity",
     autoaim::burt_autoaim_point => "Automatic aim at certain coordinates",
     autojump::burt_autojump => "Toggle automatic jumping when getting grounded",
+    p2008::burt_capture_report => "Display information about currently captured object",
     clear_mdmp::burt_clear_mdmp => "Remove all .mdmp files",
     decel::burt_decel => "Stop as fast as possible via ground friction",
     echo::burt_echo => "Print colored text to the console",
@@ -28,11 +30,13 @@ register_commands! {
     getpos_exact::burt_getpos_exact => "Get exact position and angles of the player entity",
     portal_report::burt_portal_report => "Get positions and angles of portals placed by player",
     run::rec::burt_rec => "Toggle automatic demo recording on level load",
+    p2008::burt_scale => "Scale the captured object",
     setang::burt_setang => "Rotate camera to angles",
     sg_dbg::burt_sg_dbg => "Manage Save Glitch debugging",
     run::sr_start::burt_sr_start => "Start the speedrun",
     run::sr_stop::burt_sr_stop => "End the speedrun",
-    strafe::burt_strafe => "TAS strafe tool",
+    strafe::j2009::burt_strafe => "TAS strafe tool",
+    strafe::p2008::burt_strafe => "TAS strafe tool",
     tas::burt_tas_advance => "Advance TAS playback by the specified amount of ticks",
     tas::burt_tas_pause => "Pause the TAS playback",
     tas::burt_tas_play | tas::burt_tas_play_autocomplete => "Play a TAS script with given name",

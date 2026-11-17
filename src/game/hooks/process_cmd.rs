@@ -13,12 +13,12 @@ use crate::{
     bridge::vtable::is_simulating,
     commands::{
         bvars::BVAR_TAS_QUANTIZE_MOVEMENT,
-        tas::{self, IN_RAW_PLAYBACK, Point2D},
+        tas::{self, Point2D},
     },
     define_subscriptions,
     game::{
         cvars::get_move_speed, hooks::create_move::SCHEDULED_ANGLES, math, modules,
-        offsets_provider::provider,
+        provider::provider,
     },
     log,
     os::*,
@@ -51,7 +51,7 @@ unsafe extern "thiscall" fn dispatch(this: *mut c_void, cmd: *mut u8) {
         SCHEDULED_MOVEMENT.store(0, Ordering::Relaxed);
         let tas_running = tas::SESSION_COUNTER.load(Ordering::Relaxed) == 1;
         if tas_running {
-            tas::on_process_cmd(&mut args);
+            tas::on_process_cmd();
         }
         let subs = SUBS.lock().unwrap().clone();
         subs.into_iter().for_each(|cmd| cmd.get_fn()(&mut args));
@@ -76,16 +76,13 @@ unsafe extern "thiscall" fn dispatch(this: *mut c_void, cmd: *mut u8) {
     };
 
     unsafe {
-        // 1. Restore original bytes
         let mut old = 0u32;
         VirtualProtect(target as *const c_void, 5, PAGE_EXECUTE_READWRITE, &mut old);
         ptr::copy_nonoverlapping(bytes.as_ptr(), target as *mut u8, 5);
         VirtualProtect(target as *const c_void, 5, old, &mut old);
 
-        // 2. Call original function
         orig(args.this, args.cmd);
 
-        // 3. Re-install trampoline
         let mut old = 0u32;
         VirtualProtect(target as *const c_void, 5, PAGE_EXECUTE_READWRITE, &mut old);
         *(target as *mut u8) = 0xE9;
@@ -190,7 +187,6 @@ fn process_movement(movement: &mut Point2D) {
     }
     movement.x *= move_speed.side;
     if BVAR_TAS_QUANTIZE_MOVEMENT.load(Ordering::Relaxed)
-        && !IN_RAW_PLAYBACK.load(Ordering::Relaxed)
         && SCHEDULED_ANGLES.load(Ordering::Relaxed) != 0
     {
         (movement.x, movement.y) = quantize_movement(movement.x, movement.y);

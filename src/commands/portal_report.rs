@@ -1,6 +1,6 @@
 use crate::{
     clog,
-    game::{entity, math::*, offsets_provider::provider, player},
+    game::{entity, math::*, player, provider::provider},
     structs::Color,
 };
 use burt_command::burt_command;

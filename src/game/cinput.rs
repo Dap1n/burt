@@ -2,8 +2,7 @@ use std::sync::atomic::{AtomicU8, Ordering};
 
 use crate::{
     commands::tas::HeldButtons,
-    engine_build::{self, EngineBuild},
-    game::{modules, offsets_provider::provider, signatures},
+    game::{modules, provider::provider, signatures},
 };
 
 pub static HELD_BUTTONS: AtomicU8 = AtomicU8::new(0);
@@ -19,28 +18,6 @@ pub enum Action {
 }
 
 impl Action {
-    pub fn offset(self) -> usize {
-        if engine_build::current_build() == EngineBuild::Project2008 {
-            match self {
-                Action::Attack => 0x112,
-                Action::Duck => 0x15D,
-                Action::Jump => 0x1A8,
-                Action::Use => 0x289,
-                Action::Attack2 => 0x40D,
-                Action::Slowtime => panic!("Requested slowtime outside july 2009 build"),
-            }
-        } else {
-            match self {
-                Action::Attack => 0x106,
-                Action::Duck => 0x150,
-                Action::Jump => 0x19A,
-                Action::Use => 0x278,
-                Action::Attack2 => 0x3FE,
-                Action::Slowtime => 0x6CE,
-            }
-        }
-    }
-
     #[inline]
     pub const fn bitmask(self) -> u8 {
         HeldButtons::get_n(self)
@@ -69,8 +46,9 @@ impl Action {
     #[inline]
     unsafe fn get_addr(&self, slot: usize) -> usize {
         let func_addr = modules::get_addr(modules::client(), provider().get_button_bits_sig());
-        let array_base = unsafe { signatures::read_abs_addr(func_addr + self.offset()) };
-        array_base + slot * provider().button_state_stride()
+        let (offset, extra) = provider().action_offset(*self);
+        let array_base = unsafe { signatures::read_abs_addr(func_addr + offset) };
+        array_base + extra + slot * provider().button_state_stride()
     }
 
     pub fn press(&self, slot: usize) {

@@ -1,18 +1,22 @@
+use crate::game::cinput::Action;
+
 pub mod j2009;
 pub mod p2008;
 
 /// The interface defining all memory layouts and signatures required by the plugin.
 pub trait OffsetsProvider: Send + Sync {
-    // --- client.dll RVAs (Signatures) ---
+    // --- client.dll Signatures ---
     fn cinput_create_move_sig(&self) -> &'static [Option<u8>];
     fn chl_input_process_cmd_sig(&self) -> &'static [Option<u8>];
     fn cviewrender_render_view_sig(&self) -> &'static [Option<u8>];
     fn get_button_bits_sig(&self) -> &'static [Option<u8>];
+    fn action_offset(&self, action: Action) -> (usize, usize);
 
-    // --- server.dll RVAs (Signatures) ---
+    // --- server.dll Signatures ---
     fn physics_simulate_sig(&self) -> &'static [Option<u8>];
+    fn scroll_scale_sig(&self) -> &'static [Option<u8>];
 
-    // --- engine.dll RVAs (Signatures) ---
+    // --- engine.dll Signatures ---
     fn p_entity_sig(&self) -> &'static [Option<u8>];
     fn key_event_sig(&self) -> &'static [Option<u8>];
     fn host_filter_time_sig(&self) -> &'static [Option<u8>];
@@ -32,6 +36,7 @@ pub trait OffsetsProvider: Send + Sync {
     fn player_origin_off(&self) -> usize;
     fn player_m_vec_velocity_off(&self) -> usize;
     fn player_view_offset_off(&self) -> usize;
+    fn player_m_h_active_weapon(&self) -> usize;
     fn player_m_h_use_entity_off(&self) -> usize;
     fn player_surface_friction_off(&self) -> usize;
     fn player_h_portal_env_off(&self) -> usize;
@@ -46,6 +51,16 @@ pub trait OffsetsProvider: Send + Sync {
     fn entity_classname_off(&self) -> usize;
     fn entity_name_off(&self) -> usize;
     fn entity_m_ref_ehandle_off(&self) -> usize;
+    fn entity_tracker_off(&self) -> usize;
+    fn entity_captured_handle_off(&self) -> usize;
+    fn entity_controller_off(&self) -> usize;
+    fn entity_step_off(&self) -> usize;
+    fn entity_in_placement_off(&self) -> usize;
+
+    // --- Controller vtable Slots ---
+    fn controller_min_func_slot(&self) -> usize;
+    fn controller_max_func_slot(&self) -> usize;
+    fn controller_scale_func_slot(&self) -> usize;
 
     // --- edict_t Offsets ---
     fn edict_portal_internal_off(&self) -> usize;
@@ -77,6 +92,7 @@ pub trait OffsetsProvider: Send + Sync {
 
     // --- CInput Offsets ---
     fn cinput_slot(&self) -> usize;
+    fn cinput_activate_mouse_slot(&self) -> usize;
     fn cinput_mouse_active_off(&self) -> usize;
     fn cinput_mouse_off_in_slot(&self) -> usize;
     fn cinput_slot_stride(&self) -> usize;

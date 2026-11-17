@@ -11,7 +11,7 @@ use std::{
 use crate::{
     commands::{bvars::BVAR_TAS_SKIP_TO, tas},
     define_subscriptions,
-    game::{math::Vec3, modules, offsets_provider::provider},
+    game::{math::Vec3, modules, provider::provider},
     log,
     os::*,
 };

@@ -11,10 +11,15 @@ use std::{
 use smallvec::SmallVec;
 
 use crate::{
-    commands::strafe::{
-        math,
-        state::{Direction, Params, Speed, StrafeType},
+    commands::{
+        p2008::scale::ScaleStep,
+        strafe::{
+            math,
+            p2008::{Mode, Params},
+            state::{Direction, Params as BaseParams, Speed, StrafeType},
+        },
     },
+    engine_build::{self, EngineBuild},
     game::{cinput::Action, cvars::MoveSpeed, math::normalize_vec2},
     structs::Easing,
 };
@@ -53,8 +58,8 @@ impl HeldButtons {
     pub const DUCK: u8 = 1 << 1;
     pub const USE: u8 = 1 << 2;
     pub const SLOWTIME: u8 = 1 << 3;
-    pub const BLUE: u8 = 1 << 4;
-    pub const ORANGE: u8 = 1 << 5;
+    pub const LMB: u8 = 1 << 4;
+    pub const RMB: u8 = 1 << 5;
 
     #[inline]
     pub const fn is_empty(&self) -> bool {
@@ -97,26 +102,51 @@ impl HeldButtons {
     }
 
     #[inline]
-    pub const fn blue(&self) -> bool {
-        self.0 & Self::BLUE != 0
+    pub const fn lmb(&self) -> bool {
+        self.0 & Self::LMB != 0
     }
 
     #[inline]
-    pub const fn orange(&self) -> bool {
-        self.0 & Self::ORANGE != 0
+    pub const fn rmb(&self) -> bool {
+        self.0 & Self::RMB != 0
     }
 
-    pub const fn from_char(ch: char) -> Option<HeldButtons> {
+    pub fn from_char(ch: char, build: EngineBuild) -> Option<HeldButtons> {
         let bit = match ch {
             'J' | 'j' => Self::JUMP,
             'D' | 'd' => Self::DUCK,
             'U' | 'u' => Self::USE,
-            'S' | 's' => Self::SLOWTIME,
-            'B' | 'b' => Self::BLUE,
-            'O' | 'o' => Self::ORANGE,
+            'S' | 's' if build == EngineBuild::July2009 => Self::SLOWTIME,
+            'L' | 'l' if build == EngineBuild::Project2008 => Self::LMB,
+            'B' | 'b' if build != EngineBuild::Project2008 => Self::LMB,
+            'R' | 'r' if build == EngineBuild::Project2008 => Self::RMB,
+            'O' | 'o' if build != EngineBuild::Project2008 => Self::RMB,
             _ => return None,
         };
         Some(HeldButtons(bit))
+    }
+
+    pub fn to_string(self, build: EngineBuild) -> String {
+        match build {
+            EngineBuild::Project2008 => format!(
+                "{}{}{}{}{}",
+                if self.jump() { 'J' } else { 'j' },
+                if self.duck() { 'D' } else { 'd' },
+                if self.use_() { 'U' } else { 'u' },
+                if self.lmb() { 'L' } else { 'l' },
+                if self.rmb() { 'R' } else { 'r' },
+            ),
+            EngineBuild::July2009 => format!(
+                "{}{}{}{}{}{}",
+                if self.jump() { 'J' } else { 'j' },
+                if self.duck() { 'D' } else { 'd' },
+                if self.use_() { 'U' } else { 'u' },
+                if self.slowtime() { 'S' } else { 's' },
+                if self.lmb() { 'B' } else { 'b' },
+                if self.rmb() { 'O' } else { 'o' },
+            ),
+            _ => unimplemented!(),
+        }
     }
 
     pub const fn get_n(action: Action) -> u8 {
@@ -125,28 +155,19 @@ impl HeldButtons {
             Action::Duck => Self::DUCK,
             Action::Use => Self::USE,
             Action::Slowtime => Self::SLOWTIME,
-            Action::Attack => Self::BLUE,
-            Action::Attack2 => Self::ORANGE,
+            Action::Attack => Self::LMB,
+            Action::Attack2 => Self::RMB,
         }
     }
 
-    pub const fn update_by_char(&mut self, ch: char) -> bool {
-        match ch {
-            'J' => self.set(HeldButtons::JUMP),
-            'D' => self.set(HeldButtons::DUCK),
-            'U' => self.set(HeldButtons::USE),
-            'S' => self.set(HeldButtons::SLOWTIME),
-            'B' => self.set(HeldButtons::BLUE),
-            'O' => self.set(HeldButtons::ORANGE),
-
-            'j' => self.remove(HeldButtons::JUMP),
-            'd' => self.remove(HeldButtons::DUCK),
-            'u' => self.remove(HeldButtons::USE),
-            's' => self.remove(HeldButtons::SLOWTIME),
-            'b' => self.remove(HeldButtons::BLUE),
-            'o' => self.remove(HeldButtons::ORANGE),
-
-            _ => return false,
+    pub fn update_by_char(&mut self, ch: char, build: EngineBuild) -> bool {
+        let Some(button) = Self::from_char(ch, build) else {
+            return false;
+        };
+        if ch.is_uppercase() {
+            self.set(button.0);
+        } else {
+            self.remove(button.0);
         }
         true
     }
@@ -162,21 +183,6 @@ impl HeldButtons {
         ];
         let inner = self.0;
         (0u8..6).filter_map(move |i| (inner & (1 << i) != 0).then_some(ACTIONS[i as usize]))
-    }
-}
-
-impl Display for HeldButtons {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}{}{}{}{}{}",
-            if self.jump() { 'J' } else { 'j' },
-            if self.duck() { 'D' } else { 'd' },
-            if self.use_() { 'U' } else { 'u' },
-            if self.slowtime() { 'S' } else { 's' },
-            if self.blue() { 'B' } else { 'b' },
-            if self.orange() { 'O' } else { 'o' },
-        )
     }
 }
 
@@ -199,6 +205,9 @@ pub enum ToolKind {
 pub enum Tool {
     Check {
         params: CheckParams,
+    },
+    Scale {
+        step: ScaleStep,
     },
     Setang {
         pitch: f32,
@@ -229,7 +238,10 @@ pub enum Tool {
         angle: f32,
         strength: f32,
     },
-    Strafe {
+    ModernStrafe {
+        params: BaseParams,
+    },
+    LegacyStrafe {
         params: Params,
     },
     Decel {
@@ -554,11 +566,12 @@ fn parse_buttons(
     line_number: u32,
     line: &str,
 ) -> TasResult<HeldButtons> {
+    let build = engine_build::current_build();
     let mut buttons = previous_buttons;
     let mut chars_iter = buttons_raw.chars().peekable();
 
     while let Some(ch) = chars_iter.next() {
-        if !buttons.update_by_char(ch) {
+        if !buttons.update_by_char(ch, build) {
             return Err(TasError::ParsingError {
                 line_number,
                 line: line.into(),
@@ -586,12 +599,44 @@ fn parse_buttons(
                     error: Cow::Owned(format!("Can't parse duration of button {ch}")),
                 })?;
             let future_tick = tick + duration;
-            let release_mask = HeldButtons::from_char(ch).unwrap();
+            let release_mask = HeldButtons::from_char(ch, build).unwrap();
             scheduled.push((future_tick, release_mask));
         }
     }
 
     Ok(buttons)
+}
+
+fn upsert_tool(
+    changes: &mut SmallVec<[ToolChange; 3]>,
+    current_tools: &mut Vec<Tool>,
+    is_match: &impl Fn(&Tool) -> bool,
+    new_tool: Tool,
+) {
+    if let Some(idx) = current_tools.iter().position(is_match) {
+        if current_tools[idx] != new_tool {
+            changes.push(ToolChange::Enable(new_tool.clone()));
+            current_tools[idx] = new_tool;
+        }
+    } else {
+        changes.push(ToolChange::Enable(new_tool.clone()));
+        current_tools.push(new_tool);
+    }
+}
+
+fn upsert_or_disable_tool(
+    changes: &mut SmallVec<[ToolChange; 3]>,
+    current_tools: &mut Vec<Tool>,
+    is_match: &impl Fn(&Tool) -> bool,
+    new_tool: Option<Tool>,
+    disable_kind: ToolKind,
+) {
+    if let Some(tool) = new_tool {
+        upsert_tool(changes, current_tools, is_match, tool);
+    } else if let Some(idx) = current_tools.iter().position(is_match) {
+        changes.push(ToolChange::Disable(disable_kind));
+        current_tools.remove(idx);
+    }
 }
 
 fn parse_tools(
@@ -612,199 +657,97 @@ fn parse_tools(
 
         match name {
             "check" => {
-                let params = parse_check_tool(&mut tokens, line_number, line)?;
-                let new_tool = Tool::Check { params };
-                if let Some(idx) = current_tools
-                    .iter()
-                    .position(|t| matches!(t, Tool::Check { .. }))
-                {
-                    if current_tools[idx] != new_tool {
-                        changes.push(ToolChange::Enable(new_tool.clone()));
-                        current_tools[idx] = new_tool;
-                    }
-                } else {
-                    changes.push(ToolChange::Enable(new_tool.clone()));
-                    current_tools.push(new_tool);
-                }
+                let params = parse_check_tokens(&mut tokens, line_number, line)?;
+                upsert_tool(
+                    &mut changes,
+                    current_tools,
+                    &|t| matches!(t, Tool::Check { .. }),
+                    Tool::Check { params },
+                );
+            }
+            "scale" => {
+                let step = parse_scale_tokens(&mut tokens, line_number, line)?;
+                upsert_tool(
+                    &mut changes,
+                    current_tools,
+                    &|t| matches!(t, Tool::Scale { .. }),
+                    Tool::Scale { step },
+                );
             }
             "setang" => {
                 let (pitch, yaw, time, easing) =
                     parse_setang_tokens(&mut tokens, line_number, line)?;
-
-                let new_tool = Tool::Setang {
-                    pitch,
-                    yaw,
-                    time,
-                    easing,
-                };
-                if let Some(idx) = current_tools
-                    .iter()
-                    .position(|t| matches!(t, Tool::Setang { .. }))
-                {
-                    if current_tools[idx] != new_tool {
-                        changes.push(ToolChange::Enable(new_tool.clone()));
-                        current_tools[idx] = new_tool;
-                    }
-                } else {
-                    changes.push(ToolChange::Enable(new_tool.clone()));
-                    current_tools.push(new_tool);
-                }
+                upsert_tool(
+                    &mut changes,
+                    current_tools,
+                    &|t| matches!(t, Tool::Setang { .. }),
+                    Tool::Setang {
+                        pitch,
+                        yaw,
+                        time,
+                        easing,
+                    },
+                );
             }
             "autoaim" => {
                 let parsed = parse_autoaim_tokens(&mut tokens, line_number, line)?;
-                match parsed {
-                    None => {
-                        if let Some(idx) = current_tools.iter().position(|t| {
-                            matches!(t, Tool::Autoaim { .. } | Tool::AutoaimEnt { .. })
-                        }) {
-                            changes.push(ToolChange::Disable(ToolKind::Autoaim));
-                            current_tools.remove(idx);
-                        }
-                    }
-                    Some(tool @ Tool::Autoaim { .. }) => {
-                        if let Some(idx) = current_tools.iter().position(|t| {
-                            matches!(t, Tool::Autoaim { .. } | Tool::AutoaimEnt { .. })
-                        }) {
-                            if current_tools[idx] != tool {
-                                changes.push(ToolChange::Enable(tool.clone()));
-                                current_tools[idx] = tool;
-                            }
-                        } else {
-                            changes.push(ToolChange::Enable(tool.clone()));
-                            current_tools.push(tool);
-                        }
-                    }
-                    Some(tool @ Tool::AutoaimEnt { .. }) => {
-                        if let Some(idx) = current_tools.iter().position(|t| {
-                            matches!(t, Tool::Autoaim { .. } | Tool::AutoaimEnt { .. })
-                        }) {
-                            if current_tools[idx] != tool {
-                                changes.push(ToolChange::Enable(tool.clone()));
-                                current_tools[idx] = tool;
-                            }
-                        } else {
-                            changes.push(ToolChange::Enable(tool.clone()));
-                            current_tools.push(tool);
-                        }
-                    }
-                    Some(_) => unreachable!(),
-                }
+                upsert_or_disable_tool(
+                    &mut changes,
+                    current_tools,
+                    &|t| matches!(t, Tool::Autoaim { .. } | Tool::AutoaimEnt { .. }),
+                    parsed,
+                    ToolKind::Autoaim,
+                );
             }
             "autojump" => {
                 let ducked = parse_autojump_tokens(&mut tokens, line_number, line)?;
-                match ducked {
-                    None => {
-                        if let Some(idx) = current_tools
-                            .iter()
-                            .position(|t| matches!(t, Tool::Autojump { .. }))
-                        {
-                            changes.push(ToolChange::Disable(ToolKind::Autojump));
-                            current_tools.remove(idx);
-                        }
-                    }
-                    Some(d) => {
-                        let new_tool = Tool::Autojump { ducked: d };
-                        if let Some(idx) = current_tools
-                            .iter()
-                            .position(|t| matches!(t, Tool::Autojump { .. }))
-                        {
-                            if current_tools[idx] != new_tool {
-                                changes.push(ToolChange::Enable(new_tool.clone()));
-                                current_tools[idx] = new_tool;
-                            }
-                        } else {
-                            changes.push(ToolChange::Enable(new_tool.clone()));
-                            current_tools.push(new_tool);
-                        }
-                    }
-                }
+                upsert_or_disable_tool(
+                    &mut changes,
+                    current_tools,
+                    &|t| matches!(t, Tool::Autojump { .. }),
+                    ducked.map(|ducked| Tool::Autojump { ducked }),
+                    ToolKind::Autojump,
+                );
             }
             "absmov" => {
                 let parsed = parse_absmov_tokens(&mut tokens, line_number, line)?;
-                match parsed {
-                    None => {
-                        if let Some(idx) = current_tools
-                            .iter()
-                            .position(|t| matches!(t, Tool::Absmov { .. }))
-                        {
-                            changes.push(ToolChange::Disable(ToolKind::Absmov));
-                            current_tools.remove(idx);
-                        }
-                    }
-                    Some((angle, strength)) => {
-                        let new_tool = Tool::Absmov { angle, strength };
-                        if let Some(idx) = current_tools
-                            .iter()
-                            .position(|t| matches!(t, Tool::Absmov { .. }))
-                        {
-                            if current_tools[idx] != new_tool {
-                                changes.push(ToolChange::Enable(new_tool.clone()));
-                                current_tools[idx] = new_tool;
-                            }
-                        } else {
-                            changes.push(ToolChange::Enable(new_tool.clone()));
-                            current_tools.push(new_tool);
-                        }
-                    }
-                }
+                upsert_or_disable_tool(
+                    &mut changes,
+                    current_tools,
+                    &|t| matches!(t, Tool::Absmov { .. }),
+                    parsed.map(|(angle, strength)| Tool::Absmov { angle, strength }),
+                    ToolKind::Absmov,
+                );
+            }
+            "strafe" if engine_build::current_build() == EngineBuild::Project2008 => {
+                let params = parse_legacy_strafe_tokens(&mut tokens, line_number, line)?;
+                upsert_or_disable_tool(
+                    &mut changes,
+                    current_tools,
+                    &|t| matches!(t, Tool::LegacyStrafe { .. }),
+                    params.map(|params| Tool::LegacyStrafe { params }),
+                    ToolKind::Strafe,
+                );
             }
             "strafe" => {
-                let params = parse_strafe_tokens(&mut tokens, line_number, line)?;
-                match params {
-                    None => {
-                        if let Some(idx) = current_tools
-                            .iter()
-                            .position(|t| matches!(t, Tool::Strafe { .. }))
-                        {
-                            changes.push(ToolChange::Disable(ToolKind::Strafe));
-                            current_tools.remove(idx);
-                        }
-                    }
-                    Some(p) => {
-                        let new_tool = Tool::Strafe { params: p };
-                        if let Some(idx) = current_tools
-                            .iter()
-                            .position(|t| matches!(t, Tool::Strafe { .. }))
-                        {
-                            if current_tools[idx] != new_tool {
-                                changes.push(ToolChange::Enable(new_tool.clone()));
-                                current_tools[idx] = new_tool;
-                            }
-                        } else {
-                            changes.push(ToolChange::Enable(new_tool.clone()));
-                            current_tools.push(new_tool);
-                        }
-                    }
-                }
+                let params = parse_modern_strafe_tokens(&mut tokens, line_number, line)?;
+                upsert_or_disable_tool(
+                    &mut changes,
+                    current_tools,
+                    &|t| matches!(t, Tool::ModernStrafe { .. }),
+                    params.map(|params| Tool::ModernStrafe { params }),
+                    ToolKind::Strafe,
+                );
             }
             "decel" => {
                 let parsed = parse_decel_tokens(&mut tokens, line_number, line)?;
-                match parsed {
-                    None => {
-                        if let Some(idx) = current_tools
-                            .iter()
-                            .position(|t| matches!(t, Tool::Decel { .. }))
-                        {
-                            changes.push(ToolChange::Disable(ToolKind::Decel));
-                            current_tools.remove(idx);
-                        }
-                    }
-                    Some(speed) => {
-                        let new_tool = Tool::Decel { speed };
-                        if let Some(idx) = current_tools
-                            .iter()
-                            .position(|t| matches!(t, Tool::Decel { .. }))
-                        {
-                            if current_tools[idx] != new_tool {
-                                changes.push(ToolChange::Enable(new_tool.clone()));
-                                current_tools[idx] = new_tool;
-                            }
-                        } else {
-                            changes.push(ToolChange::Enable(new_tool.clone()));
-                            current_tools.push(new_tool);
-                        }
-                    }
-                }
+                upsert_or_disable_tool(
+                    &mut changes,
+                    current_tools,
+                    &|t| matches!(t, Tool::Decel { .. }),
+                    parsed.map(|speed| Tool::Decel { speed }),
+                    ToolKind::Decel,
+                );
             }
             other => {
                 return Err(TasError::ParsingError {
@@ -841,7 +784,7 @@ pub struct CheckParams {
     pub velepsilon: f32,
 }
 
-fn parse_check_tool<'a>(
+fn parse_check_tokens<'a>(
     tokens: &mut impl Iterator<Item = &'a str>,
     line_number: u32,
     line: &str,
@@ -965,16 +908,16 @@ fn parse_check_tool<'a>(
                 }
 
                 let is_next_keyword = tokens.peek().is_none_or(|&next| {
-                    matches!(
-                        next,
-                        "pos"
-                            | "ang"
-                            | "vel"
-                            | "holding"
-                            | "posepsilon"
-                            | "angepsilon"
-                            | "velepsilon"
-                    )
+                    [
+                        "pos",
+                        "ang",
+                        "vel",
+                        "holding",
+                        "posepsilon",
+                        "angepsilon",
+                        "velepsilon",
+                    ]
+                    .contains(&next)
                 });
 
                 if is_next_keyword {
@@ -1067,12 +1010,141 @@ fn parse_check_tool<'a>(
     })
 }
 
-fn parse_strafe_tokens<'a>(
+fn parse_scale_tokens<'a>(
+    tokens: &mut impl Iterator<Item = &'a str>,
+    line_number: u32,
+    line: &str,
+) -> TasResult<ScaleStep> {
+    if engine_build::current_build() != EngineBuild::Project2008 {
+        return Err(TasError::ParsingError {
+            line_number,
+            line: line.into(),
+            error: Cow::Borrowed("Requested scale tool outside Project 2008"),
+        });
+    }
+
+    let token = tokens.next().ok_or_else(|| TasError::ParsingError {
+        line_number,
+        line: line.into(),
+        error: Cow::Borrowed("Expected a scale step"),
+    })?;
+
+    if let Ok(step) = token.parse::<i32>() {
+        return Ok(ScaleStep::Exact(step));
+    }
+
+    match token {
+        "min" => Ok(ScaleStep::Min),
+        "max" => Ok(ScaleStep::Max),
+
+        "up" | "down" => {
+            let sign = if token == "up" { 1 } else { -1 };
+
+            let Some(next) = tokens.next() else {
+                return Ok(ScaleStep::Relative(sign));
+            };
+            let Ok(n @ 1..) = next.parse() else {
+                return Err(TasError::ParsingError {
+                    line_number,
+                    line: line.into(),
+                    error: Cow::Borrowed(
+                        "Expected a parseable signed 32-bit non-zero integer after up/down",
+                    ),
+                });
+            };
+            Ok(ScaleStep::Relative(n * sign))
+        }
+
+        _ => Err(TasError::ParsingError {
+            line_number,
+            line: line.into(),
+            error: Cow::Borrowed("Expected a parseable signed 32-bit integer, min/max or up/down"),
+        }),
+    }
+}
+
+fn parse_legacy_strafe_tokens<'a>(
     tokens: &mut impl Iterator<Item = &'a str>,
     line_number: u32,
     line: &str,
 ) -> TasResult<Option<Params>> {
     let mut params = Params::new();
+
+    while let Some(token) = tokens.next() {
+        match token {
+            "off" | "none" => return Ok(None),
+            "abh" => params.mode = Mode::Abh,
+            "afh" => params.mode = Mode::Afh,
+            "forward" => {
+                params.dir = Direction::Current {
+                    use_vel_angle: false,
+                };
+            }
+            "forwardvel" => {
+                params.dir = Direction::Current {
+                    use_vel_angle: true,
+                };
+            }
+            "left" => {
+                params.dir = Direction::Specified(10000.0);
+            }
+            "right" => {
+                params.dir = Direction::Specified(-10000.0);
+            }
+            "afhlength" => {
+                let Some(afh_length) = tokens.next().and_then(|s| s.parse().ok()) else {
+                    return Err(TasError::ParsingError {
+                        line_number,
+                        line: line.into(),
+                        error: Cow::Borrowed("Expected parseable float after afhlength"),
+                    });
+                };
+                if !(0.0..=1.0).contains(&afh_length) {
+                    return Err(TasError::ParsingError {
+                        line_number,
+                        line: line.into(),
+                        error: Cow::Borrowed(
+                            "Expected afhlength to be a number in range from 0 to 1",
+                        ),
+                    });
+                }
+                params.afh_length = afh_length;
+            }
+            _ => {
+                if let Some(s) = token.strip_suffix("deg") {
+                    let v: f32 = s.parse().map_err(|_| TasError::ParsingError {
+                        line_number,
+                        line: line.into(),
+                        error: Cow::Owned(format!("Invalid deg: {token}")),
+                    })?;
+                    if !v.is_finite() {
+                        return Err(TasError::ParsingError {
+                            line_number,
+                            line: line.into(),
+                            error: Cow::Borrowed("Deg is not finite"),
+                        });
+                    }
+                    params.dir = Direction::Specified(math::normalize_signed(v));
+                } else {
+                    return Err(TasError::ParsingError {
+                        line_number,
+                        line: line.into(),
+                        error: Cow::Owned(format!("Unknown strafe param: {token}")),
+                    });
+                }
+            }
+        }
+    }
+
+    Ok(Some(params))
+}
+
+fn parse_modern_strafe_tokens<'a>(
+    tokens: &mut impl Iterator<Item = &'a str>,
+    line_number: u32,
+    line: &str,
+) -> TasResult<Option<BaseParams>> {
+    let mut params = BaseParams::new();
 
     for token in tokens {
         match token {

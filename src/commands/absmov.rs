@@ -9,7 +9,7 @@ use crate::{
             Subscriber,
             process_cmd::{self, ProcessCmdArgs, schedule_movement},
         },
-        offsets_provider::provider,
+        provider::provider,
     },
     structs::Color,
 };

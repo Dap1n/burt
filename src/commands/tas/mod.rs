@@ -1,30 +1,27 @@
 use std::{
     fs,
+    os::raw::c_void,
     path::Path,
     sync::{
         RwLock,
-        atomic::{AtomicBool, AtomicI32, AtomicU8, AtomicU32, AtomicU64, AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicU8, AtomicU32, AtomicU64, AtomicUsize, Ordering},
     },
 };
 
 use portable_atomic::AtomicF32;
 
 use crate::{
-    bridge::{
-        commands::{AutocompleteError, AutocompleteWriter},
-        vtable::is_simulating,
-    },
+    bridge::commands::{AutocompleteError, AutocompleteWriter},
     cexec, clog,
     commands::{
         absmov, autoaim, autojump,
         bvars::*,
-        decel, setang,
+        decel,
+        p2008::scale,
+        setang,
         strafe::{self, math::length3d},
-        tas::{
-            parser::*,
-            raw::{RAW_LOGGER, RawLogger},
-        },
     },
+    engine_build::{self, EngineBuild},
     game::{
         cinput::HELD_BUTTONS,
         cvars::{self, *},
@@ -33,10 +30,10 @@ use crate::{
             accumulate_time::{TIME_ADVANCE_TICKS, TIME_PAUSED},
             create_move::{self, CreateMoveArgs},
             input_filter,
-            process_cmd::{self, ProcessCmdArgs, schedule_movement},
+            process_cmd::{self, schedule_movement},
         },
-        offsets_provider::provider,
         player,
+        provider::provider,
     },
     statics::ENGINE,
     structs::{Color, Coordinates, TargetEntity},
@@ -47,7 +44,8 @@ use burt_command::{burt_autocomplete, burt_command};
 mod parser;
 mod raw;
 
-pub use parser::{HeldButtons, Point2D};
+pub use parser::*;
+pub use raw::{RAW_LOGGER, RawLogger};
 
 pub static TICK: AtomicU32 = AtomicU32::new(0);
 pub static SKIP: AtomicUsize = AtomicUsize::new(0);
@@ -56,11 +54,9 @@ pub static CURRENT_ANGLES: AtomicU64 = AtomicU64::new(0);
 pub static CURRENT_DX: AtomicF32 = AtomicF32::new(0.0);
 pub static CURRENT_DY: AtomicF32 = AtomicF32::new(0.0);
 pub static CURRENT_COMMANDS: RwLock<Option<Box<str>>> = RwLock::new(None);
-pub static LAST_SEQ_NUM: AtomicI32 = AtomicI32::new(0);
 pub static SESSION_COUNTER: AtomicU8 = AtomicU8::new(0);
 pub static RETRY_COUNTER: AtomicU32 = AtomicU32::new(0);
 pub static PARSED_TAS: RwLock<Option<TasScript>> = RwLock::new(None);
-pub static IN_RAW_PLAYBACK: AtomicBool = AtomicBool::new(false);
 
 pub static LAST_FPS_MAX: AtomicF32 = AtomicF32::new(60.0);
 pub static LAST_HOST_FRAMERATE: AtomicF32 = AtomicF32::new(60.0);
@@ -78,7 +74,7 @@ pub static LAST_JOYSTICK: AtomicBool = AtomicBool::new(true);
 pub static LAST_PLAYED_TAS: RwLock<Option<Box<str>>> = RwLock::new(None);
 
 fn is_save_exists(name: &str) -> bool {
-    let Ok(read_dir) = fs::read_dir("./portal2/SAVE") else {
+    let Ok(read_dir) = fs::read_dir(format!("./{}/SAVE", provider().main_folder())) else {
         return false;
     };
     read_dir
@@ -87,7 +83,7 @@ fn is_save_exists(name: &str) -> bool {
 }
 
 fn is_map_exists(name: &str) -> bool {
-    let Ok(read_dir) = fs::read_dir("./portal2/maps") else {
+    let Ok(read_dir) = fs::read_dir(format!("./{}/maps", provider().main_folder())) else {
         return false;
     };
     read_dir
@@ -100,7 +96,11 @@ fn disable_all_tools() {
     autoaim::disable_autoaim();
     autojump::disable_autojump();
     absmov::disable_absmov();
-    strafe::disable_strafe();
+    if engine_build::current_build() == EngineBuild::Project2008 {
+        strafe::p2008::disable_strafe();
+    } else {
+        strafe::j2009::disable_strafe();
+    }
     decel::disable_decel();
 }
 
@@ -110,7 +110,7 @@ fn release_all_buttons() {
         .for_each(|action| action.release(0));
 }
 
-fn restore() {
+pub fn restore() {
     TICK.store(0, Ordering::Relaxed);
     SKIP.store(0, Ordering::Relaxed);
     CURRENT_MOVEMENT.store(0, Ordering::Relaxed);
@@ -125,7 +125,8 @@ fn restore() {
 
 fn handle_tool_change(change: &ToolChange) {
     match change {
-        ToolChange::Enable(Tool::Check { .. }) => (),
+        ToolChange::Enable(Tool::Check { .. }) => (), // already handled
+        ToolChange::Enable(Tool::Scale { .. }) => (), // already handled
         &ToolChange::Enable(Tool::Setang {
             pitch,
             yaw,
@@ -188,8 +189,11 @@ fn handle_tool_change(change: &ToolChange) {
         &ToolChange::Enable(Tool::Absmov { angle, strength }) => {
             absmov::enable_absmov(angle, strength);
         }
-        &ToolChange::Enable(Tool::Strafe { params }) => {
-            strafe::enable_strafe(params);
+        &ToolChange::Enable(Tool::ModernStrafe { params }) => {
+            strafe::j2009::enable_strafe(params);
+        }
+        &ToolChange::Enable(Tool::LegacyStrafe { params }) => {
+            strafe::p2008::enable_strafe(params);
         }
         &ToolChange::Enable(Tool::Decel { speed }) => {
             decel::enable_decel(speed);
@@ -204,7 +208,11 @@ fn handle_tool_change(change: &ToolChange) {
             absmov::disable_absmov();
         }
         ToolChange::Disable(ToolKind::Strafe) => {
-            strafe::disable_strafe();
+            if engine_build::current_build() == EngineBuild::Project2008 {
+                strafe::p2008::disable_strafe();
+            } else {
+                strafe::j2009::disable_strafe();
+            }
         }
         ToolChange::Disable(ToolKind::Decel) => {
             decel::disable_decel();
@@ -278,13 +286,7 @@ fn check_passed(params: &CheckParams) -> bool {
     holding_check_pass
 }
 
-fn set_cvars() {
-    LAST_FPS_MAX.store(FPS_MAX.float_or(60.0), Ordering::Relaxed);
-    if BVAR_TAS_SKIP_TO.load(Ordering::Relaxed) == 0 {
-        FPS_MAX.set_float(60.0 * BVAR_TAS_PLAYBACK_RATE.load(Ordering::Relaxed));
-    } else {
-        FPS_MAX.set_int(0);
-    }
+pub fn set_cvars() {
     LAST_HOST_FRAMERATE.store(HOST_FRAMERATE.float_or(0.0), Ordering::Relaxed);
     HOST_FRAMERATE.set_int(60);
 
@@ -310,9 +312,12 @@ fn set_cvars() {
     cvars::set_cl_interpolate(BVAR_TAS_INTERPOLATE.load(Ordering::Relaxed));
     LAST_MAT_MOTION_BLUR.store(MAT_MOTION_BLUR_ENABLED.int_or(1) != 0, Ordering::Relaxed);
     cvars::set_mat_motion_blur(false);
+
+    LAST_JOYSTICK.store(cvars::JOYSTICK.int_or(1) != 0, Ordering::Relaxed);
+    cvars::set_joystick(false);
 }
 
-fn restore_cvars() {
+pub fn restore_cvars() {
     FPS_MAX.set_float(LAST_FPS_MAX.load(Ordering::Relaxed));
     HOST_FRAMERATE.set_float(LAST_HOST_FRAMERATE.load(Ordering::Relaxed));
 
@@ -337,7 +342,6 @@ pub fn end_tas() {
     cvars::set_mouseenable(true);
     restore();
     restore_cvars();
-    LAST_SEQ_NUM.store(i32::MAX, Ordering::Relaxed);
     SESSION_COUNTER.store(0, Ordering::Relaxed);
     PARSED_TAS.write().unwrap().take();
     let mut logger_write = RAW_LOGGER.write().unwrap();
@@ -345,43 +349,7 @@ pub fn end_tas() {
 }
 
 pub fn on_create_move(args: &mut CreateMoveArgs) {
-    let mut session_counter = SESSION_COUNTER.load(Ordering::Relaxed);
-    if session_counter == 0 {
-        return;
-    }
-
-    if LAST_SEQ_NUM.load(Ordering::Relaxed) > args.sequence_number {
-        SESSION_COUNTER.fetch_sub(1, Ordering::Relaxed);
-        session_counter -= 1;
-        match session_counter {
-            0 => {
-                // TAS finished via new session load
-                input_filter::set_keyinputs_enabled(true);
-                cvars::set_mouseenable(true);
-                restore();
-                restore_cvars();
-                RETRY_COUNTER.store(0, Ordering::Relaxed);
-                PARSED_TAS.write().unwrap().take();
-                let mut logger_write = RAW_LOGGER.write().unwrap();
-                logger_write.take();
-            }
-            1 => {
-                // TAS should start
-                restore();
-                set_cvars();
-                RETRY_COUNTER.store(0, Ordering::Relaxed);
-            }
-            2 => (), // wait for the next session
-            _ => unreachable!(),
-        }
-    }
-
-    LAST_SEQ_NUM.store(args.sequence_number, Ordering::Relaxed);
-    if session_counter != 1 {
-        return;
-    }
-
-    if IN_LOAD.load(Ordering::Relaxed) {
+    if IN_LOAD.load(Ordering::Relaxed) || SESSION_COUNTER.load(Ordering::Relaxed) != 1 {
         return;
     }
 
@@ -389,14 +357,28 @@ pub fn on_create_move(args: &mut CreateMoveArgs) {
     CURRENT_DY.store(0.0, Ordering::Relaxed);
 
     unsafe {
-        // force m_fMouseActive to true so AdjustAngles runs
         let mouse_active_ptr = (args.this as *mut u8).add(provider().cinput_mouse_active_off());
         if *mouse_active_ptr == 0 {
-            *mouse_active_ptr = 1;
+            let vtable = *(args.this as *const *const usize);
+
+            // Call ActivateMouse() so we can change angles immediately
+            let activate_mouse: unsafe extern "thiscall" fn(*mut c_void) =
+                std::mem::transmute(*vtable.add(provider().cinput_activate_mouse_slot()));
+
+            activate_mouse(args.this);
         }
     }
 
     let tick = TICK.fetch_add(1, Ordering::Relaxed);
+
+    if tick == 0 {
+        LAST_FPS_MAX.store(FPS_MAX.float_or(60.0), Ordering::Relaxed);
+        if BVAR_TAS_SKIP_TO.load(Ordering::Relaxed) == 0 {
+            FPS_MAX.set_float(60.0 * BVAR_TAS_PLAYBACK_RATE.load(Ordering::Relaxed));
+        } else {
+            FPS_MAX.set_int(0);
+        }
+    }
 
     let mut tas_finished = false;
     let mut gave_up = false;
@@ -444,14 +426,14 @@ pub fn on_create_move(args: &mut CreateMoveArgs) {
                 );
             }
             restore();
-            LAST_SEQ_NUM.store(0, Ordering::Relaxed);
             'b: {
                 let curr_tas_read = LAST_PLAYED_TAS.read().unwrap();
                 let Some(curr_tas) = curr_tas_read.as_deref() else {
                     break 'b;
                 };
+                let extension = provider().tas_extension();
                 let raw_path =
-                    curr_tas[..curr_tas.len() - ".p2btas".len()].to_string() + "_raw.p2btas";
+                    curr_tas[..curr_tas.len() - extension.len()].to_string() + "_raw" + extension;
                 let Ok(logger) = RawLogger::new(raw_path, parsed_tas) else {
                     break 'b;
                 };
@@ -471,12 +453,47 @@ pub fn on_create_move(args: &mut CreateMoveArgs) {
         if let Some(actions_release) = intent.actions_release {
             actions_release.for_each(|action| action.release(0));
         }
+        let scale = if let Some(tools_changes) = intent.tools
+            && let Some(step) = tools_changes.iter().find_map(|t| {
+                if let ToolChange::Enable(Tool::Scale { step }) = t {
+                    Some(step)
+                } else {
+                    None
+                }
+            })
+            && let Some(report) = player::get_capture_report()
+            && report.in_placement
+        {
+            scale::enable_scale(report, *step)
+        } else {
+            0
+        };
         if !BVAR_TAS_COMMANDS_DISABLE.load(Ordering::Relaxed)
             && let Some(commands) = intent.commands
             && let Some(engine) = ENGINE.get()
         {
-            engine.execute(commands, true);
-            CURRENT_COMMANDS.write().unwrap().replace(commands.into());
+            engine.execute(&commands, true);
+            let commands = if scale != 0 {
+                let s = if scale > 0 {
+                    "mwheel_down;"
+                } else {
+                    "mwheel_up;"
+                };
+                (s.repeat(scale.abs() as usize) + commands).into()
+            } else {
+                commands.into()
+            };
+            CURRENT_COMMANDS.write().unwrap().replace(commands);
+        } else if scale != 0 {
+            let s = if scale > 0 {
+                "mwheel_down;"
+            } else {
+                "mwheel_up;"
+            };
+            CURRENT_COMMANDS
+                .write()
+                .unwrap()
+                .replace(s.repeat(scale.abs() as usize).trim_end_matches(';').into());
         }
         if !tools_disable && let Some(tools_changes) = intent.tools {
             tools_changes.iter().for_each(handle_tool_change);
@@ -495,14 +512,10 @@ pub fn on_create_move(args: &mut CreateMoveArgs) {
     }
 }
 
-pub fn on_process_cmd(args: &mut ProcessCmdArgs) {
-    if IN_LOAD.load(Ordering::Relaxed) || !is_simulating() {
+pub fn on_process_cmd() {
+    if IN_LOAD.load(Ordering::Relaxed) {
         return;
     }
-    let seq = unsafe { *(args.cmd.add(provider().cusercmd_sequence_number_off()) as *const i32) };
-    if seq != LAST_SEQ_NUM.load(Ordering::Relaxed) {
-        return;
-    };
     let movement = Point2D::from_bits(CURRENT_MOVEMENT.load(Ordering::Relaxed));
     schedule_movement(movement.x, movement.y);
 }
@@ -546,7 +559,7 @@ fn exec_tas_start(start: &StartMethod) {
                 clog!(err_prefix;
                     [Color::WHITE => "Specified save "],
                     [Color::RED => "{save_name}"],
-                    [Color::WHITE => " does not exist"],
+                    [Color::WHITE => " doesn't exist"],
                 );
                 return;
             }
@@ -557,7 +570,7 @@ fn exec_tas_start(start: &StartMethod) {
                 clog!(err_prefix;
                     [Color::WHITE => "Specified map "],
                     [Color::RED => "{map_name}"],
-                    [Color::WHITE => " does not exist"],
+                    [Color::WHITE => " doesn't exist"],
                 );
                 return;
             }
@@ -569,10 +582,11 @@ fn exec_tas_start(start: &StartMethod) {
 }
 
 fn play_tas(filename: String) {
-    let filename = if filename.ends_with(".p2btas") {
+    let extension = provider().tas_extension();
+    let filename = if filename.ends_with(extension) {
         filename
     } else {
-        filename + ".p2btas"
+        filename + extension
     };
 
     let tas_path = format!("./tas/{filename}");
@@ -584,8 +598,7 @@ fn play_tas(filename: String) {
             clog!(err_prefix;
                 [Color::WHITE => "Failed to open tas script!\n"],
                 [Color::RED => "Error:"],
-                [Color::WHITE => " "],
-                [Color::WHITE => "{error}"],
+                [Color::WHITE => " {error}"],
             );
             return;
         }
@@ -645,21 +658,17 @@ fn play_tas(filename: String) {
         }
     }
 
-    if !filename.ends_with("_raw.p2btas") {
-        IN_RAW_PLAYBACK.store(false, Ordering::Relaxed);
-        let raw_filename = if filename.ends_with(".p2btas") {
-            filename[..filename.len() - ".p2btas".len()].to_string() + "_raw.p2btas"
+    if !filename.ends_with(&("_raw".to_string() + extension)) {
+        let raw_filename = if filename.ends_with(extension) {
+            filename[..filename.len() - extension.len()].to_string() + "_raw" + extension
         } else {
-            format!("{filename}_raw.p2btas")
+            format!("{filename}_raw{extension}")
         };
         if let Ok(logger) = RawLogger::new(format!("./tas/{raw_filename}"), &parsed_tas) {
             RAW_LOGGER.write().unwrap().replace(logger);
         }
-    } else {
-        IN_RAW_PLAYBACK.store(true, Ordering::Relaxed);
     }
 
-    LAST_SEQ_NUM.store(i32::MAX, Ordering::Relaxed);
     *PARSED_TAS.write().unwrap() = Some(parsed_tas);
 }
 
@@ -695,10 +704,11 @@ pub fn burt_tas_play_autocomplete(partial: String, writer: &mut AutocompleteWrit
         return;
     };
 
+    let extension = provider().tas_extension();
     for entry in entries.flatten() {
         let file_name = entry.file_name();
         let file_name = file_name.to_string_lossy();
-        let Some(file_name) = file_name.strip_suffix(".p2btas") else {
+        let Some(file_name) = file_name.strip_suffix(extension) else {
             if !entry.path().is_dir() || !file_name.starts_with(prefix) {
                 continue;
             }

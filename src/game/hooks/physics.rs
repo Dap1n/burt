@@ -8,7 +8,7 @@ use std::{
 };
 
 use crate::{
-    game::{modules, offsets_provider::provider, player},
+    game::{modules, player, provider::provider},
     log,
     os::*,
 };

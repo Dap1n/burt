@@ -1,12 +1,11 @@
 use pe_sigscan::pattern;
 
+use crate::game::{Project2008, cinput::Action};
+
 use super::OffsetsProvider;
 
-/// Zero-sized type representing the F-Stop recreation in Project 2008.
-pub struct Project2008;
-
 impl OffsetsProvider for Project2008 {
-    // --- client.dll RVAs ---
+    // --- client.dll Signatures ---
     fn cinput_create_move_sig(&self) -> &'static [Option<u8>] {
         pattern![
             0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x0C, 0x53, 0x56, 0x57, 0x8B, 0xF9, 0x8B, 0x0D, _, _, _,
@@ -31,7 +30,7 @@ impl OffsetsProvider for Project2008 {
             0x9D, 0xF4, 0xFE, 0xFF, 0xFF, 0x6A, 0x00, 0x89, 0xBD, 0xEC, 0xFE, 0xFF, 0xFF, 0x89,
             0x85, 0xF0, 0xFE, 0xFF, 0xFF, 0x8D, 0x8F, 0x28, 0x02, 0x00, 0x00, 0xE8, _, _, _, _,
             0x8B, 0x0D, _, _, _, _, 0x8B, 0x01, 0xFF, 0x90, 0xFC, 0x01, 0x00, 0x00,
-        ] // 0x351b30
+        ] // 0x351B30
     }
 
     fn get_button_bits_sig(&self) -> &'static [Option<u8>] {
@@ -41,7 +40,18 @@ impl OffsetsProvider for Project2008 {
         ] // 0x2BB4F0
     }
 
-    // --- server.dll RVAs ---
+    fn action_offset(&self, action: Action) -> (usize, usize) {
+        match action {
+            Action::Attack => (0x112, 0),
+            Action::Duck => (0x15D, 0),
+            Action::Jump => (0x1A8, 0),
+            Action::Use => (0x289, 0),
+            Action::Attack2 => (0x112, 0xC),
+            Action::Slowtime => panic!("Requested slowtime in P2008"),
+        }
+    }
+
+    // --- server.dll Signatures ---
     fn physics_simulate_sig(&self) -> &'static [Option<u8>] {
         pattern![
             0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x34, 0x53, 0x6A, 0x04, 0x6A, 0x00, 0x68, _, _, _, _,
@@ -50,7 +60,15 @@ impl OffsetsProvider for Project2008 {
         ] // 0x2D4C10
     }
 
-    // --- engine.dll RVAs ---
+    fn scroll_scale_sig(&self) -> &'static [Option<u8>] {
+        pattern![
+            0x55, 0x8B, 0xEC, 0x56, 0x8B, 0xF1, 0x80, 0xBE, _, _, _, _, _, 0x0F, 0x84, _, _, _, _,
+            0x57, 0xE8, _, _, _, _, 0x8B, 0xF8, 0x85, 0xFF, 0x74, _, 0x8B, 0x07, 0x8B, 0xCF, 0x8B,
+            0x80, 0x58, 0x01, 0x00, 0x00, 0xFF, 0xD0
+        ] // 0x3A51D0
+    }
+
+    // --- engine.dll Signatures ---
     fn p_entity_sig(&self) -> &'static [Option<u8>] {
         pattern![
             0x56, 0x8B, 0x74, 0x24, 0x08, 0x85, 0xF6, 0x7C, _, 0x3B, 0x35, _, _, _, _, 0x7C, _,
@@ -76,7 +94,7 @@ impl OffsetsProvider for Project2008 {
     fn accumulator_sig(&self) -> &'static [Option<u8>] {
         pattern![
             0xF3, 0x0F, 0x58, 0x05, _, _, _, _, 0xF3, 0x0F, 0x11, 0x05, _, _, _, _,
-        ] // 0x541f0
+        ] // 0x541F0
     }
 
     // --- engine.dll Offsets ---
@@ -111,6 +129,9 @@ impl OffsetsProvider for Project2008 {
     fn player_view_offset_off(&self) -> usize {
         0x358
     }
+    fn player_m_h_active_weapon(&self) -> usize {
+        0x918
+    }
     fn player_m_h_use_entity_off(&self) -> usize {
         0xC34
     }
@@ -121,7 +142,7 @@ impl OffsetsProvider for Project2008 {
         0x15E8
     }
     fn pickup_m_h_object_off(&self) -> usize {
-        unimplemented!()
+        0x23FC
     }
 
     // --- Flags ---
@@ -137,13 +158,39 @@ impl OffsetsProvider for Project2008 {
         Self::player_origin_off(self)
     }
     fn entity_classname_off(&self) -> usize {
-        0x60
+        0x64
     }
     fn entity_name_off(&self) -> usize {
         0x124
     }
     fn entity_m_ref_ehandle_off(&self) -> usize {
-        0x340
+        0x354
+    }
+    fn entity_tracker_off(&self) -> usize {
+        0x620
+    }
+    fn entity_captured_handle_off(&self) -> usize {
+        0x624
+    }
+    fn entity_controller_off(&self) -> usize {
+        0x674
+    }
+    fn entity_step_off(&self) -> usize {
+        0x6B0
+    }
+    fn entity_in_placement_off(&self) -> usize {
+        0x6CD
+    }
+
+    // --- Controller vtable Slots ---
+    fn controller_min_func_slot(&self) -> usize {
+        5
+    }
+    fn controller_max_func_slot(&self) -> usize {
+        4
+    }
+    fn controller_scale_func_slot(&self) -> usize {
+        6
     }
 
     // --- edict_t Offsets ---
@@ -217,6 +264,9 @@ impl OffsetsProvider for Project2008 {
     // --- CInput Offsets ---
     fn cinput_slot(&self) -> usize {
         0
+    }
+    fn cinput_activate_mouse_slot(&self) -> usize {
+        19
     }
     fn cinput_mouse_active_off(&self) -> usize {
         0x6

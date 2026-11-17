@@ -1,3 +1,5 @@
+use crate::engine_build::{EngineBuild, SUPPORTED_BUILDS_COUNT};
+
 #[doc(hidden)]
 #[macro_export]
 macro_rules! __internal_log {
@@ -173,19 +175,57 @@ pub const fn extract_cmd_name(path: &'static str) -> &'static str {
     path.split_at(start).1
 }
 
+pub const fn extract_builds(path: &'static str) -> [Option<EngineBuild>; SUPPORTED_BUILDS_COUNT] {
+    let mut builds = [None; SUPPORTED_BUILDS_COUNT];
+    let bytes = path.as_bytes();
+    let mut builds_restricted = false;
+    let mut start = 0;
+    let mut i = 0;
+    while i < bytes.len() {
+        let byte = bytes[i];
+        if byte != b':' && byte != b'_' {
+            i += 1;
+            continue;
+        }
+        if start < i {
+            let s = bytes.split_at(start).1.split_at(i - start).0;
+            if let Some(build) = EngineBuild::from_shorthand(s) {
+                builds[build as usize] = Some(build);
+                builds_restricted = true;
+            }
+        }
+        start = i + 1;
+        i += 1;
+    }
+    if !builds_restricted {
+        i = 0;
+        while i < SUPPORTED_BUILDS_COUNT {
+            builds[i] = Some(EngineBuild::from_index(i as u8));
+            i += 1;
+        }
+    }
+    builds
+}
+
 /// Registers BURT commands
 #[macro_export]
 macro_rules! register_commands {
     ($( $path:path $(| $autocomplete:path)? => $help:expr ),* $(,)?) => {
-        pub static PLUGIN_COMMANDS: [$crate::bridge::commands::SyncCommand; $crate::register_commands!(@count $($path),*)] = [
+        pub static PLUGIN_COMMANDS: [
+            ($crate::bridge::commands::SyncCommand, [Option<$crate::engine_build::EngineBuild>; $crate::engine_build::SUPPORTED_BUILDS_COUNT]);
+            $crate::register_commands!(@count $($path),*)
+        ] = [
             $(
-                $crate::bridge::commands::SyncCommand::new(
-                    $crate::bridge::commands::ConCommand::new(
-                        $crate::macros::extract_cmd_name(concat!(stringify!($path), "\0")),
-                        concat!($help, "\0"),
-                        $path,
-                        $crate::register_commands!(@opt_auto $($autocomplete)?)
-                    )
+                (
+                    $crate::bridge::commands::SyncCommand::new(
+                        $crate::bridge::commands::ConCommand::new(
+                            $crate::macros::extract_cmd_name(concat!(stringify!($path), "\0")),
+                            concat!($help, "\0"),
+                            $path,
+                            $crate::register_commands!(@opt_auto $($autocomplete)?)
+                        )
+                    ),
+                    $crate::macros::extract_builds(stringify!($path)),
                 )
             ),*
         ];

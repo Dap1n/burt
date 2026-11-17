@@ -1,6 +1,5 @@
-use super::state::Params;
 use crate::{
-    commands::strafe::state::{Direction, Speed},
+    commands::strafe::state::*,
     game::{
         cinput::Action,
         cvars::*,
@@ -9,7 +8,7 @@ use crate::{
     },
 };
 
-const AIRACCELERATE: f32 = 10.0;
+const AIR_WISHSPEED_CAP: f32 = 30.0;
 const AIRCONTROL_LIMIT: f32 = 300.0;
 
 #[inline]
@@ -32,6 +31,7 @@ pub struct CvarCache {
     pub friction: f32,
     pub stopspeed: f32,
     pub accelerate: f32,
+    pub airaccelerate: f32,
     pub maxspeed: f32,
     pub maxvelocity: f32,
 }
@@ -42,6 +42,7 @@ impl CvarCache {
             friction: SV_FRICTION.float_or(4.0),
             stopspeed: SV_STOPSPEED.float_or(100.0),
             accelerate: SV_ACCELERATE.float_or(10.0),
+            airaccelerate: SV_AIRACCELERATE.float_or(10.0),
             maxspeed: SV_MAXSPEED.float_or(320.0),
             maxvelocity: SV_MAXVELOCITY.float_or(3500.0),
         }
@@ -114,7 +115,7 @@ pub fn get_max_speed(p: &PlayerSnapshot, wish: (f32, f32), not_aired: bool) -> f
     if p.will_be_grounded || not_aired {
         max_speed
     } else {
-        max_speed.min(30.0)
+        max_speed.min(AIR_WISHSPEED_CAP)
     }
 }
 
@@ -122,7 +123,7 @@ pub fn get_max_accel(p: &PlayerSnapshot, cv: &CvarCache, wish: (f32, f32)) -> f3
     let accel = if p.will_be_grounded {
         cv.accelerate
     } else {
-        AIRACCELERATE
+        cv.airaccelerate
     };
 
     p.surface_friction * TICKTIME * get_max_speed(p, wish, p.will_be_grounded) * accel
@@ -206,13 +207,13 @@ pub fn get_velocity_after_move(
     let accel = if p.will_be_grounded {
         cv.accelerate
     } else {
-        AIRACCELERATE
+        cv.airaccelerate
     };
 
     let clamped_wishspeed = if p.will_be_grounded {
         wishspeed.min(p.max_speed)
     } else {
-        wishspeed.min(30.0)
+        wishspeed.min(AIR_WISHSPEED_CAP)
     };
     let dot = velocity.0 * nx + velocity.1 * ny;
     let addspeed = clamped_wishspeed - dot;
@@ -292,7 +293,7 @@ pub fn get_target_strafe_angle(
 pub fn turning_direction(
     p: &PlayerSnapshot,
     cv: &CvarCache,
-    params: &Params,
+    let_speed_lock: bool,
     target_speed: f32,
     target_angle_deg: f32,
 ) -> i32 {
@@ -310,11 +311,7 @@ pub fn turning_direction(
         1
     };
 
-    if !params.let_speed_lock
-        && !p.will_be_grounded
-        && speed < target_speed
-        && speed >= AIRCONTROL_LIMIT
-    {
+    if !let_speed_lock && !p.will_be_grounded && speed < target_speed && speed >= AIRCONTROL_LIMIT {
         let wish = (0.0, 1.0);
         let max_speed = get_max_speed(p, wish, p.will_be_grounded);
         let max_accel = get_max_accel(p, cv, wish);

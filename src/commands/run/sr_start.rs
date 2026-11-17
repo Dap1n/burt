@@ -4,7 +4,7 @@ use crate::{
     cexec, clog,
     commands::run::state::{self, RunState},
     consts::SPEEDRUN_FOLDER_FORMAT,
-    engine_build::{self, EngineBuild},
+    game::provider::provider,
     log,
     os::format_local_time,
     structs::Color,
@@ -24,16 +24,10 @@ pub fn burt_sr_start(use_vault_save: Option<bool>) {
         return;
     }
 
-    let current_build = engine_build::current_build();
-
-    let parent_name = if current_build == EngineBuild::Project2008 {
-        "p2008"
-    } else {
-        "portal2"
-    };
+    let main_folder = provider().main_folder();
 
     let vault_save_exists: Option<bool> = use_vault_save.unwrap_or(true).then(|| {
-        fs::read_dir(format!("{parent_name}/SAVE"))
+        fs::read_dir(format!("{main_folder}/SAVE"))
             .ok()
             .map(|rd| {
                 rd.filter_map(|x| x.ok())
@@ -56,11 +50,11 @@ pub fn burt_sr_start(use_vault_save: Option<bool>) {
 
     clog!(prefix;
         [Color::WHITE => "Recording to "],
-        [Color::LIME => "{parent_name}/records/{folder}"],
+        [Color::LIME => "{main_folder}/records/{folder}"],
     );
     log!("[sr_start] Recording demos to {folder}");
 
-    let _ = fs::create_dir(format!("{parent_name}/records/{folder}"));
+    let _ = fs::create_dir(format!("{main_folder}/records/{folder}"));
 
     let with_vault_save = vault_save_exists.unwrap_or_default();
     *state::RUN_STATE.write().unwrap() = RunState::Speedrun {
@@ -70,9 +64,7 @@ pub fn burt_sr_start(use_vault_save: Option<bool>) {
 
     if with_vault_save {
         cexec!("load vault");
-    } else if current_build == EngineBuild::Project2008 {
-        cexec!("map lab_intro");
     } else {
-        cexec!("map p2_lab_prehub_1");
+        cexec!("map {}", provider().first_map());
     }
 }
