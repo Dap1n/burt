@@ -472,14 +472,14 @@ pub fn on_create_move(args: &mut CreateMoveArgs) {
             && let Some(commands) = intent.commands
             && let Some(engine) = ENGINE.get()
         {
-            engine.execute(&commands, true);
+            engine.execute(commands, true);
             let commands = if scale != 0 {
                 let s = if scale > 0 {
                     "mwheel_down;"
                 } else {
                     "mwheel_up;"
                 };
-                (s.repeat(scale.abs() as usize) + commands).into()
+                (s.repeat(scale.unsigned_abs() as usize) + commands).into()
             } else {
                 commands.into()
             };
@@ -490,10 +490,11 @@ pub fn on_create_move(args: &mut CreateMoveArgs) {
             } else {
                 "mwheel_up;"
             };
-            CURRENT_COMMANDS
-                .write()
-                .unwrap()
-                .replace(s.repeat(scale.abs() as usize).trim_end_matches(';').into());
+            CURRENT_COMMANDS.write().unwrap().replace(
+                s.repeat(scale.unsigned_abs() as usize)
+                    .trim_end_matches(';')
+                    .into(),
+            );
         }
         if !tools_disable && let Some(tools_changes) = intent.tools {
             tools_changes.iter().for_each(handle_tool_change);
