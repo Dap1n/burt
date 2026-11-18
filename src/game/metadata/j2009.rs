@@ -18,6 +18,9 @@ impl MetadataProvider for July2009 {
     fn in_end_position(&self, view: Vec3) -> bool {
         view == (4096.0, 3220.0, 4096.0)
     }
+    fn tickrate(&self) -> f32 {
+        60.0
+    }
     fn move_speed(&self) -> f32 {
         175.0
     }

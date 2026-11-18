@@ -4,7 +4,7 @@ use crate::{
         cinput::Action,
         cvars::*,
         math::{Vec3, deg_to_rad, rad_to_deg},
-        player::{self, TICKTIME},
+        player,
     },
 };
 
@@ -65,7 +65,7 @@ fn total_friction(p: &PlayerSnapshot, cv: &CvarCache) -> f32 {
     cv.friction * p.surface_friction
 }
 
-pub fn ground_friction_velocity(p: &PlayerSnapshot, cv: &CvarCache) -> Vec3 {
+pub fn ground_friction_velocity(p: &PlayerSnapshot, cv: &CvarCache, tick_interval: f32) -> Vec3 {
     if !p.will_be_grounded {
         return p.velocity;
     }
@@ -75,16 +75,16 @@ pub fn ground_friction_velocity(p: &PlayerSnapshot, cv: &CvarCache) -> Vec3 {
     let friction = total_friction(p, cv);
 
     if speed >= cv.stopspeed {
-        let scale = 1.0 - TICKTIME * friction;
+        let scale = 1.0 - tick_interval * friction;
         vel.0 *= scale;
         vel.1 *= scale;
     } else {
-        let min_speed = 0.1f32.max(TICKTIME * cv.stopspeed * friction);
+        let min_speed = 0.1f32.max(tick_interval * cv.stopspeed * friction);
         if speed >= min_speed {
             let inv_speed = if speed > 0.0 { 1.0 / speed } else { 0.0 };
             let nx = vel.0 * inv_speed;
             let ny = vel.1 * inv_speed;
-            let drop = TICKTIME * cv.stopspeed * friction;
+            let drop = tick_interval * cv.stopspeed * friction;
             vel.0 -= nx * drop;
             vel.1 -= ny * drop;
         } else {
@@ -119,14 +119,19 @@ pub fn get_max_speed(p: &PlayerSnapshot, wish: (f32, f32), not_aired: bool) -> f
     }
 }
 
-pub fn get_max_accel(p: &PlayerSnapshot, cv: &CvarCache, wish: (f32, f32)) -> f32 {
+pub fn get_max_accel(
+    p: &PlayerSnapshot,
+    cv: &CvarCache,
+    wish: (f32, f32),
+    tick_interval: f32,
+) -> f32 {
     let accel = if p.will_be_grounded {
         cv.accelerate
     } else {
         cv.airaccelerate
     };
 
-    p.surface_friction * TICKTIME * get_max_speed(p, wish, p.will_be_grounded) * accel
+    p.surface_friction * tick_interval * get_max_speed(p, wish, p.will_be_grounded) * accel
 }
 
 pub fn predict_will_be_grounded(velocity: Vec3) -> bool {
@@ -188,8 +193,9 @@ pub fn get_velocity_after_move(
     forward_move: f32,
     side_move: f32,
     will_be_grounded: bool,
+    tick_interval: f32,
 ) -> Vec3 {
-    let mut velocity = ground_friction_velocity(p, cv);
+    let mut velocity = ground_friction_velocity(p, cv, tick_interval);
     if will_be_grounded {
         velocity.2 -= 10.0;
     }
@@ -221,7 +227,7 @@ pub fn get_velocity_after_move(
     if addspeed <= 0.0 {
         velocity
     } else {
-        let accelspeed = p.surface_friction * TICKTIME * wishspeed * accel;
+        let accelspeed = p.surface_friction * tick_interval * wishspeed * accel;
         let accel_force = accelspeed.min(addspeed);
 
         (
@@ -232,8 +238,8 @@ pub fn get_velocity_after_move(
     }
 }
 
-pub fn get_fastest_strafe_angle(p: &PlayerSnapshot, cv: &CvarCache) -> f32 {
-    let velocity = ground_friction_velocity(p, cv);
+pub fn get_fastest_strafe_angle(p: &PlayerSnapshot, cv: &CvarCache, tick_interval: f32) -> f32 {
+    let velocity = ground_friction_velocity(p, cv, tick_interval);
     let speed = length2d(velocity);
     if speed == 0.0 {
         return 0.0;
@@ -241,20 +247,20 @@ pub fn get_fastest_strafe_angle(p: &PlayerSnapshot, cv: &CvarCache) -> f32 {
 
     let wish = (0.0, 1.0);
     let max_speed = get_max_speed(p, wish, p.will_be_grounded);
-    let max_accel = get_max_accel(p, cv, wish);
+    let max_accel = get_max_accel(p, cv, wish, tick_interval);
 
     let cos_ang = (max_speed - max_accel) / speed;
     cos_ang.clamp(-1.0, 1.0).acos()
 }
 
-pub fn get_turning_strafe_angle(p: &PlayerSnapshot, cv: &CvarCache) -> f32 {
-    let velocity = ground_friction_velocity(p, cv);
+pub fn get_turning_strafe_angle(p: &PlayerSnapshot, cv: &CvarCache, tick_interval: f32) -> f32 {
+    let velocity = ground_friction_velocity(p, cv, tick_interval);
     let speed = length2d(velocity);
     if speed == 0.0 {
         return 0.0;
     }
 
-    let max_accel = get_max_accel(p, cv, (0.0, 1.0));
+    let max_accel = get_max_accel(p, cv, (0.0, 1.0), tick_interval);
 
     let mut cos_ang = -max_accel / speed;
     if cos_ang < -1.0 {
@@ -269,14 +275,15 @@ pub fn get_target_strafe_angle(
     cv: &CvarCache,
     target_speed: f32,
     turning_dir: i32,
+    tick_interval: f32,
 ) -> f32 {
-    let velocity = ground_friction_velocity(p, cv);
+    let velocity = ground_friction_velocity(p, cv, tick_interval);
     let current_speed = length2d(velocity);
     if current_speed == 0.0 {
         return 0.0;
     }
 
-    let max_accel = get_max_accel(p, cv, (0.0, 1.0));
+    let max_accel = get_max_accel(p, cv, (0.0, 1.0), tick_interval);
 
     let denom = 2.0 * current_speed * max_accel;
     if denom.abs() < f32::EPSILON {
@@ -296,6 +303,7 @@ pub fn turning_direction(
     let_speed_lock: bool,
     target_speed: f32,
     target_angle_deg: f32,
+    tick_interval: f32,
 ) -> i32 {
     let speed = length2d(p.velocity);
     let vel_angle_deg = if speed == 0.0 {
@@ -314,7 +322,7 @@ pub fn turning_direction(
     if !let_speed_lock && !p.will_be_grounded && speed < target_speed && speed >= AIRCONTROL_LIMIT {
         let wish = (0.0, 1.0);
         let max_speed = get_max_speed(p, wish, p.will_be_grounded);
-        let max_accel = get_max_accel(p, cv, wish);
+        let max_accel = get_max_accel(p, cv, wish, tick_interval);
         let speed_capped_vel = max_speed - max_accel;
 
         if p.velocity.0.abs() > speed_capped_vel && p.velocity.1.abs() > speed_capped_vel {
@@ -352,8 +360,9 @@ pub fn get_strafe_angle(
     vel_angle_deg: f32,
     target_angle_deg: f32,
     turning_dir: i32,
+    tick_interval: f32,
 ) -> f32 {
-    let velocity = ground_friction_velocity(p, cv);
+    let velocity = ground_friction_velocity(p, cv, tick_interval);
     let speed = length2d(velocity);
 
     let mut speed_diff = target_speed - speed;
@@ -363,7 +372,7 @@ pub fn get_strafe_angle(
 
     let td = turning_dir as f32;
     if speed_diff > 0.0 {
-        let mut a = get_fastest_strafe_angle(p, cv) * td;
+        let mut a = get_fastest_strafe_angle(p, cv, tick_interval) * td;
 
         let vel_angle_rad = if speed == 0.0 {
             deg_to_rad(target_angle_deg)
@@ -373,14 +382,21 @@ pub fn get_strafe_angle(
         let correct_ang = vel_angle_rad + a - deg_to_rad(p.yaw);
         let forward = correct_ang.cos();
         let side = -correct_ang.sin();
-        let predicted_speed = length2d(get_velocity_after_move(p, cv, forward, side, false));
+        let predicted_speed = length2d(get_velocity_after_move(
+            p,
+            cv,
+            forward,
+            side,
+            false,
+            tick_interval,
+        ));
         if predicted_speed > target_speed {
-            a = get_target_strafe_angle(p, cv, target_speed, turning_dir);
+            a = get_target_strafe_angle(p, cv, target_speed, turning_dir, tick_interval);
         }
         a
     } else if speed_diff < 0.0 {
-        get_target_strafe_angle(p, cv, target_speed, turning_dir)
+        get_target_strafe_angle(p, cv, target_speed, turning_dir, tick_interval)
     } else {
-        get_turning_strafe_angle(p, cv) * td
+        get_turning_strafe_angle(p, cv, tick_interval) * td
     }
 }

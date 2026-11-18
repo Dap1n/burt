@@ -10,7 +10,8 @@ use crate::{
             process_cmd,
         },
         math::{Vec3, calculate_aim_angles, shortest_dyaw},
-        player::{self, TICKTIME},
+        player,
+        provider::provider,
     },
     structs::{Color, Coordinates, Easing, TargetEntity},
 };
@@ -53,9 +54,10 @@ pub fn predict_eye() -> Option<Vec3> {
         }
     };
 
-    let predicted_x = eye.0 + (vel.0 * TICKTIME) + (0.5 * diff(last_x, vel.0) * TICKTIME);
-    let predicted_y = eye.1 + (vel.1 * TICKTIME) + (0.5 * diff(last_y, vel.1) * TICKTIME);
-    let predicted_z = eye.2 + (vel.2 * TICKTIME) + (0.5 * diff(last_z, vel.2) * TICKTIME);
+    let tick_interval = 1.0 / provider().tickrate();
+    let predicted_x = eye.0 + (vel.0 * tick_interval) + (0.5 * diff(last_x, vel.0) * tick_interval);
+    let predicted_y = eye.1 + (vel.1 * tick_interval) + (0.5 * diff(last_y, vel.1) * tick_interval);
+    let predicted_z = eye.2 + (vel.2 * tick_interval) + (0.5 * diff(last_z, vel.2) * tick_interval);
 
     Some((predicted_x, predicted_y, predicted_z))
 }

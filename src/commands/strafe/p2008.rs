@@ -23,6 +23,7 @@ use crate::{
         },
         math::{Vec3, deg_to_rad, rad_to_deg},
         player,
+        provider::provider,
     },
     structs::Color,
 };
@@ -157,8 +158,17 @@ fn plan_tick(
     };
 
     let target_speed = cv.maxvelocity * 2.0;
-    let turn_dir = turning_direction(&snapshot, cv, true, target_speed, target);
-    let strafe_ang = get_strafe_angle(&snapshot, cv, target_speed, vel_angle_deg, target, turn_dir);
+    let tick_interval = 1.0 / provider().tickrate();
+    let turn_dir = turning_direction(&snapshot, cv, true, target_speed, target, tick_interval);
+    let strafe_ang = get_strafe_angle(
+        &snapshot,
+        cv,
+        target_speed,
+        vel_angle_deg,
+        target,
+        turn_dir,
+        tick_interval,
+    );
 
     let (yaw, forward, side) = match params.mode {
         Mode::Abh => (

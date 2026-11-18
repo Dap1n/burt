@@ -20,6 +20,9 @@ impl MetadataProvider for Project2008 {
             && (-2310.0..=-2280.0).contains(&view.1)
             && (-3072.0..=-2950.0).contains(&view.2)
     }
+    fn tickrate(&self) -> f32 {
+        66.0 + 2.0 / 3.0
+    }
     fn move_speed(&self) -> f32 {
         275.0
     }

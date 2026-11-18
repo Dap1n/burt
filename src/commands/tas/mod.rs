@@ -59,7 +59,7 @@ pub static RETRY_COUNTER: AtomicU32 = AtomicU32::new(0);
 pub static PARSED_TAS: RwLock<Option<TasScript>> = RwLock::new(None);
 
 pub static LAST_FPS_MAX: AtomicF32 = AtomicF32::new(60.0);
-pub static LAST_HOST_FRAMERATE: AtomicF32 = AtomicF32::new(60.0);
+pub static LAST_HOST_FRAMERATE: AtomicF32 = AtomicF32::new(0.0);
 pub static LAST_SENSITIVITY: AtomicF32 = AtomicF32::new(3.0);
 pub static LAST_M_YAW: AtomicF32 = AtomicF32::new(0.022);
 pub static LAST_M_PITCH: AtomicF32 = AtomicF32::new(0.022);
@@ -288,7 +288,7 @@ fn check_passed(params: &CheckParams) -> bool {
 
 pub fn set_cvars() {
     LAST_HOST_FRAMERATE.store(HOST_FRAMERATE.float_or(0.0), Ordering::Relaxed);
-    HOST_FRAMERATE.set_int(60);
+    HOST_FRAMERATE.set_float(provider().tickrate());
 
     LAST_SENSITIVITY.store(SENSITIVITY.float_or(3.0), Ordering::Relaxed);
     SENSITIVITY.set_float(3.0);
@@ -374,7 +374,8 @@ pub fn on_create_move(args: &mut CreateMoveArgs) {
     if tick == 0 {
         LAST_FPS_MAX.store(FPS_MAX.float_or(60.0), Ordering::Relaxed);
         if BVAR_TAS_SKIP_TO.load(Ordering::Relaxed) == 0 {
-            FPS_MAX.set_float(60.0 * BVAR_TAS_PLAYBACK_RATE.load(Ordering::Relaxed));
+            FPS_MAX
+                .set_float(provider().tickrate() * BVAR_TAS_PLAYBACK_RATE.load(Ordering::Relaxed));
         } else {
             FPS_MAX.set_int(0);
         }
@@ -546,7 +547,7 @@ pub fn on_process_cmd_end(movement: Point2D) {
     if skip_to != 0 && TICK.load(Ordering::Relaxed) <= skip_to {
         return;
     }
-    let fps_desired = 60.0 * BVAR_TAS_PLAYBACK_RATE.load(Ordering::Relaxed);
+    let fps_desired = provider().tickrate() * BVAR_TAS_PLAYBACK_RATE.load(Ordering::Relaxed);
     if FPS_MAX.float_or(60.0) != fps_desired {
         FPS_MAX.set_float(fps_desired);
     }

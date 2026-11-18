@@ -13,7 +13,7 @@ use crate::{
         tas::{SESSION_COUNTER, TICK},
     },
     game::{
-        player::TICKTIME,
+        provider::provider,
         signatures::{self, get_accumulator_addr, get_filtered_frametime_addr},
     },
     log,
@@ -81,7 +81,7 @@ unsafe extern "cdecl" fn dispatch(frametime: f32) {
                 *accumulator = 0.0;
             }
             if prev > 0 {
-                *filtered_frametime = TICKTIME;
+                *filtered_frametime = 1.0 / provider().tickrate();
             } else {
                 *filtered_frametime = 0.0;
             }

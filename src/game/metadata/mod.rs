@@ -10,5 +10,6 @@ pub trait MetadataProvider: Send + Sync {
     fn first_map(&self) -> &'static str;
     fn last_map(&self) -> &'static str;
     fn in_end_position(&self, view: Vec3) -> bool;
+    fn tickrate(&self) -> f32;
     fn move_speed(&self) -> f32;
 }

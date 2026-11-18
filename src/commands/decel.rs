@@ -17,6 +17,7 @@ use crate::{
             process_cmd::{self, ProcessCmdArgs, schedule_movement},
         },
         player,
+        provider::provider,
     },
     structs::Color,
 };
@@ -50,7 +51,8 @@ fn on_process_cmd(args: &mut ProcessCmdArgs) {
         surface_friction: 1.0,
     };
 
-    let friction_vel = ground_friction_velocity(&snapshot, &cv);
+    let tick_interval = provider().tickrate();
+    let friction_vel = ground_friction_velocity(&snapshot, &cv, tick_interval);
     let player_vel = length2d(friction_vel);
 
     if target_vel >= player_vel {
@@ -66,7 +68,7 @@ fn on_process_cmd(args: &mut ProcessCmdArgs) {
     let mut side = -rel.sin();
 
     let wish = create_wish_dir(&snapshot, forward, side);
-    let max_accel = get_max_accel(&snapshot, &cv, wish);
+    let max_accel = get_max_accel(&snapshot, &cv, wish, tick_interval);
 
     if player_vel - target_vel < max_accel {
         let scale = (player_vel - target_vel) / max_accel;

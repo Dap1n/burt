@@ -5,8 +5,6 @@ use std::{
 
 use crate::game::{entity, math::Vec3, provider::provider, signatures};
 
-pub const TICKTIME: f32 = 1.0 / 60.0;
-
 pub static PLAYER: AtomicUsize = AtomicUsize::new(0);
 
 pub fn set(ptr: usize) {

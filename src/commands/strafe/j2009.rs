@@ -18,6 +18,7 @@ use crate::{
         },
         math::{deg_to_rad, rad_to_deg},
         player,
+        provider::provider,
     },
     structs::Color,
 };
@@ -61,12 +62,14 @@ fn on_create_move(_: &mut CreateMoveArgs) {
         surface_friction: player::surface_friction(),
     };
     let target_speed = resolve_target_speed(&snapshot, &cv, &params);
+    let tick_interval = 1.0 / provider().tickrate();
     let turn_dir = turning_direction(
         &snapshot,
         &cv,
         params.let_speed_lock,
         target_speed,
         target_angle_deg,
+        tick_interval,
     );
     let strafe_ang = get_strafe_angle(
         &snapshot,
@@ -75,6 +78,7 @@ fn on_create_move(_: &mut CreateMoveArgs) {
         vel_angle_deg,
         target_angle_deg,
         turn_dir,
+        tick_interval,
     );
     let abs_move_angle_deg = vel_angle_deg + rad_to_deg(strafe_ang);
     ABS_MOVE_ANGLE.store(abs_move_angle_deg, Ordering::Relaxed);
