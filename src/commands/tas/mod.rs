@@ -348,8 +348,17 @@ pub fn end_tas() {
     logger_write.take();
 }
 
+#[inline]
+pub fn tas_driving() -> bool {
+    SESSION_COUNTER.load(Ordering::Relaxed) == 1
+        && !IN_LOAD.load(Ordering::Relaxed)
+        && !(engine_build::current_build() == EngineBuild::Project2008
+            && TIME_PAUSED.load(Ordering::Relaxed)
+            && TIME_ADVANCE_TICKS.load(Ordering::Relaxed) == 0)
+}
+
 pub fn on_create_move(args: &mut CreateMoveArgs) {
-    if IN_LOAD.load(Ordering::Relaxed) || SESSION_COUNTER.load(Ordering::Relaxed) != 1 {
+    if !tas_driving() {
         return;
     }
 
@@ -515,7 +524,7 @@ pub fn on_create_move(args: &mut CreateMoveArgs) {
 }
 
 pub fn on_process_cmd() {
-    if IN_LOAD.load(Ordering::Relaxed) {
+    if !tas_driving() {
         return;
     }
     let movement = Point2D::from_bits(CURRENT_MOVEMENT.load(Ordering::Relaxed));
@@ -523,7 +532,7 @@ pub fn on_process_cmd() {
 }
 
 pub fn on_process_cmd_end(movement: Point2D) {
-    if IN_LOAD.load(Ordering::Relaxed) {
+    if !tas_driving() {
         return;
     }
     let mut logger_write = RAW_LOGGER.write().unwrap();
@@ -542,6 +551,9 @@ pub fn on_process_cmd_end(movement: Point2D) {
     let pause_tick = BVAR_TAS_PAUSE_AT.load(Ordering::Relaxed);
     if pause_tick != 0 && tick == pause_tick {
         TIME_PAUSED.store(true, Ordering::Relaxed);
+        if engine_build::current_build() == EngineBuild::Project2008 {
+            HOST_FRAMERATE.set_float(provider().tickrate() + 0.0001);
+        }
     }
     let skip_to = BVAR_TAS_SKIP_TO.load(Ordering::Relaxed);
     if skip_to != 0 && TICK.load(Ordering::Relaxed) <= skip_to {
@@ -796,6 +808,9 @@ pub fn burt_tas_stop() {
 pub fn burt_tas_pause() {
     TIME_PAUSED.store(true, Ordering::Relaxed);
     if SESSION_COUNTER.load(Ordering::Relaxed) == 1 {
+        if engine_build::current_build() == EngineBuild::Project2008 {
+            HOST_FRAMERATE.set_float(provider().tickrate() + 0.0001);
+        }
         clog!(prefix;
             [Color::WHITE => "TAS paused at tick "],
             [Color::YELLOW => "{}", TICK.load(Ordering::Relaxed)],
@@ -809,6 +824,9 @@ pub fn burt_tas_pause() {
 pub fn burt_tas_resume() {
     TIME_PAUSED.store(false, Ordering::Relaxed);
     if SESSION_COUNTER.load(Ordering::Relaxed) == 1 {
+        if engine_build::current_build() == EngineBuild::Project2008 {
+            HOST_FRAMERATE.set_float(provider().tickrate());
+        }
         clog!(prefix;
             [Color::WHITE => "TAS resumed at tick "],
             [Color::YELLOW => "{}", TICK.load(Ordering::Relaxed) - 1],

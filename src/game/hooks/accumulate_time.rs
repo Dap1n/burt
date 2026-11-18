@@ -12,10 +12,7 @@ use crate::{
         bvars::BVAR_TAS_SKIP_TO,
         tas::{SESSION_COUNTER, TICK},
     },
-    game::{
-        provider::provider,
-        signatures::{self, get_accumulator_addr, get_filtered_frametime_addr},
-    },
+    game::signatures::{self, get_accumulator_addr, get_filtered_frametime_addr},
     log,
     os::*,
 };
@@ -53,8 +50,9 @@ unsafe extern "cdecl" fn dispatch(frametime: f32) {
     }
 
     let in_tas = SESSION_COUNTER.load(Ordering::Relaxed) == 1;
+    let advance = TIME_ADVANCE_TICKS.load(Ordering::Relaxed);
 
-    if in_tas {
+    if in_tas && advance == 0 {
         let accumulator = get_accumulator_addr() as *mut f32;
         unsafe {
             *accumulator = 0.0;
@@ -62,30 +60,27 @@ unsafe extern "cdecl" fn dispatch(frametime: f32) {
     }
 
     let skip_to = BVAR_TAS_SKIP_TO.load(Ordering::Relaxed);
-    if in_tas && skip_to != 0 && TICK.load(Ordering::Relaxed) <= skip_to {
+    let skipping = in_tas && skip_to != 0 && TICK.load(Ordering::Relaxed) <= skip_to;
+
+    if skipping || !TIME_PAUSED.load(Ordering::Relaxed) {
         return;
     }
 
-    if TIME_PAUSED.load(Ordering::Relaxed) {
-        let prev = TIME_ADVANCE_TICKS
-            .try_update(Ordering::Relaxed, Ordering::Relaxed, |n| {
-                if n > 0 { Some(n - 1) } else { Some(0) }
-            })
-            .unwrap_or_default();
+    if advance != 0 {
+        TIME_ADVANCE_TICKS.fetch_sub(1, Ordering::Relaxed);
+        return;
+    }
 
-        let filtered_frametime = get_filtered_frametime_addr() as *mut f32;
-
+    if !in_tas {
+        let accumulator = get_accumulator_addr() as *mut f32;
         unsafe {
-            if !in_tas {
-                let accumulator = get_accumulator_addr() as *mut f32;
-                *accumulator = 0.0;
-            }
-            if prev > 0 {
-                *filtered_frametime = 1.0 / provider().tickrate();
-            } else {
-                *filtered_frametime = 0.0;
-            }
+            *accumulator = 0.0;
         }
+    }
+
+    let filtered_frametime = get_filtered_frametime_addr() as *mut f32;
+    unsafe {
+        *filtered_frametime = 0.0;
     }
 }
 
