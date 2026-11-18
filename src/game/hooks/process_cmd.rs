@@ -189,7 +189,7 @@ fn process_movement(movement: &mut Point2D) {
     movement.x *= move_speed.side;
     if engine_build::current_build() != EngineBuild::Project2008
         && BVAR_TAS_QUANTIZE_MOVEMENT.load(Ordering::Relaxed)
-        && SCHEDULED_ANGLES.load(Ordering::Relaxed) != 0
+        && SCHEDULED_ANGLES.load(Ordering::Relaxed) != u64::MAX
     {
         (movement.x, movement.y) = quantize_movement(movement.x, movement.y);
     }
