@@ -12,10 +12,11 @@ use portable_atomic::AtomicF32;
 use crate::{
     bridge::vtable::is_simulating,
     commands::{
-        bvars::BVAR_TAS_QUANTIZE_MOVEMENT,
+        j2009::bvars::BVAR_TAS_QUANTIZE_MOVEMENT,
         tas::{self, Point2D},
     },
     define_subscriptions,
+    engine_build::{self, EngineBuild},
     game::{
         cvars::get_move_speed, hooks::create_move::SCHEDULED_ANGLES, math, modules,
         provider::provider,
@@ -186,7 +187,8 @@ fn process_movement(movement: &mut Point2D) {
         movement.y *= move_speed.back;
     }
     movement.x *= move_speed.side;
-    if BVAR_TAS_QUANTIZE_MOVEMENT.load(Ordering::Relaxed)
+    if engine_build::current_build() != EngineBuild::Project2008
+        && BVAR_TAS_QUANTIZE_MOVEMENT.load(Ordering::Relaxed)
         && SCHEDULED_ANGLES.load(Ordering::Relaxed) != 0
     {
         (movement.x, movement.y) = quantize_movement(movement.x, movement.y);
@@ -206,7 +208,7 @@ const CLAMP_THRESHOLD: f32 = 175.0;
 ///
 /// If the vector's length is < 175.0, it is quantized directly to the nearest
 /// multiple of (450.0 / 32768.0), simulating partial stick tilt.
-pub fn quantize_movement(mut x: f32, mut y: f32) -> (f32, f32) {
+fn quantize_movement(mut x: f32, mut y: f32) -> (f32, f32) {
     let length_sq = x * x + y * y;
 
     if length_sq >= CLAMP_THRESHOLD * CLAMP_THRESHOLD {

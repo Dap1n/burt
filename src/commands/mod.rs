@@ -9,6 +9,7 @@ mod decel;
 mod echo;
 mod exit;
 mod getpos_exact;
+pub mod j2009;
 pub mod p2008;
 mod portal_report;
 pub mod run;
@@ -50,7 +51,7 @@ register_commands! {
     bvars::bvar_tas_interpolate => "Preserve client interpolation in TAS playback",
     bvars::bvar_tas_pause_at => "Automatically pause the TAS at the given tick",
     bvars::bvar_tas_playback_rate => "The rate at which to play back TAS scripts",
-    bvars::bvar_tas_quantize_movement => "Whether to quantize movement",
+    j2009::bvars::bvar_tas_quantize_movement => "Whether to quantize movement",
     bvars::bvar_tas_skip_to => "Quickly forward the TAS up to the given tick",
     bvars::bvar_tas_tools_disable => "Globally disable all TAS tools",
 }

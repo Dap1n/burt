@@ -11,7 +11,6 @@ pub static BVAR_TAS_COMMANDS_DISABLE: AtomicBool = AtomicBool::new(false);
 pub static BVAR_TAS_INTERPOLATE: AtomicBool = AtomicBool::new(false);
 pub static BVAR_TAS_PAUSE_AT: AtomicU32 = AtomicU32::new(0);
 pub static BVAR_TAS_PLAYBACK_RATE: AtomicF32 = AtomicF32::new(1.0);
-pub static BVAR_TAS_QUANTIZE_MOVEMENT: AtomicBool = AtomicBool::new(true);
 pub static BVAR_TAS_SKIP_TO: AtomicU32 = AtomicU32::new(0);
 pub static BVAR_TAS_TOOLS_DISABLE: AtomicBool = AtomicBool::new(false);
 
@@ -63,20 +62,6 @@ pub fn bvar_tas_pause_at(tick: u32) {
 pub fn bvar_tas_playback_rate(rate: f32) {
     define_bounds!(0.0 <= rate <= 10_000.0);
     BVAR_TAS_PLAYBACK_RATE.store(rate, Ordering::Relaxed);
-}
-
-/// Whether to quantize movement. Quantization is used
-/// to match the heavily restricted movement possibilities
-/// in this build caused by lower joystick precision.
-///
-/// When enabled, movement vectors shorter than `175.0` are quantized to the nearest
-/// 16-bit XInput step (`450.0 / 32768.0`). Vectors longer than `175.0` are scaled
-/// to exactly `450.0` to let the engine perform precise `f32` normalization.
-///
-/// Disable this to allow arbitrary `f32` precision.
-#[burt_command(var = BVAR_TAS_QUANTIZE_MOVEMENT)]
-pub fn bvar_tas_quantize_movement(quantize: bool) {
-    BVAR_TAS_QUANTIZE_MOVEMENT.store(quantize, Ordering::Relaxed);
 }
 
 /// Quickly forwards the TAS up to the given tick.
