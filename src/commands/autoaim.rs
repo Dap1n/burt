@@ -31,14 +31,14 @@ static DURATION_TICKS: AtomicU32 = AtomicU32::new(0);
 static ELAPSED_TICKS: AtomicU32 = AtomicU32::new(0);
 static EASING: AtomicU8 = AtomicU8::new(0);
 
-pub static LAST_VEL_X: AtomicF32 = AtomicF32::new(0.0);
-pub static LAST_VEL_Y: AtomicF32 = AtomicF32::new(0.0);
-pub static LAST_VEL_Z: AtomicF32 = AtomicF32::new(0.0);
+static LAST_VEL_X: AtomicF32 = AtomicF32::new(0.0);
+static LAST_VEL_Y: AtomicF32 = AtomicF32::new(0.0);
+static LAST_VEL_Z: AtomicF32 = AtomicF32::new(0.0);
 
 static CURRENT_EDICT: AtomicU32 = AtomicU32::new(0);
 static CURRENT_ENTITY: AtomicU32 = AtomicU32::new(0);
 
-pub fn predict_eye() -> Option<Vec3> {
+fn predict_eye() -> Option<Vec3> {
     let eye = player::eye_pos()?;
     let vel = player::velocity()?;
 
@@ -130,23 +130,38 @@ fn on_create_move(_: &mut CreateMoveArgs) {
     }
 }
 
-pub fn enable_autoaim(coordinates: Coordinates, duration: u32, easing: Easing) {
+#[inline]
+fn reset_state() {
+    AIM_TARGET[0].store(0.0, Ordering::Relaxed);
+    AIM_TARGET[1].store(0.0, Ordering::Relaxed);
+    AIM_TARGET[2].store(0.0, Ordering::Relaxed);
+    START_PITCH.store(0.0, Ordering::Relaxed);
+    START_YAW.store(0.0, Ordering::Relaxed);
+    DURATION_COMPLETED.store(false, Ordering::Relaxed);
+    DURATION_TICKS.store(0, Ordering::Relaxed);
+    ELAPSED_TICKS.store(0, Ordering::Relaxed);
+    EASING.store(0, Ordering::Relaxed);
+    LAST_VEL_X.store(0.0, Ordering::Relaxed);
+    LAST_VEL_Y.store(0.0, Ordering::Relaxed);
+    LAST_VEL_Z.store(0.0, Ordering::Relaxed);
     CURRENT_EDICT.store(0, Ordering::Relaxed);
     CURRENT_ENTITY.store(0, Ordering::Relaxed);
+}
+
+pub fn enable_autoaim(coordinates: Coordinates, duration: u32, easing: Easing) {
+    reset_state();
 
     AIM_TARGET[0].store(coordinates.x, Ordering::Relaxed);
     AIM_TARGET[1].store(coordinates.y, Ordering::Relaxed);
     AIM_TARGET[2].store(coordinates.z, Ordering::Relaxed);
 
     let (start_pitch, start_yaw) = process_cmd::cached_body_angles();
-
     START_PITCH.store(start_pitch, Ordering::Relaxed);
     START_YAW.store(start_yaw, Ordering::Relaxed);
 
-    EASING.store(easing.to_index(), Ordering::Relaxed);
     DURATION_COMPLETED.store(duration == 0, Ordering::Relaxed);
     DURATION_TICKS.store(duration, Ordering::Relaxed);
-    ELAPSED_TICKS.store(0, Ordering::Relaxed);
+    EASING.store(easing.to_index(), Ordering::Relaxed);
     AUTOAIM_ACTIVE.store(true, Ordering::Relaxed);
 
     create_move::subscribe(Subscriber::Autoaim(on_create_move));
@@ -159,6 +174,8 @@ pub fn enable_autoaim_entity(
     duration: u32,
     easing: Easing,
 ) {
+    reset_state();
+
     CURRENT_EDICT.store(edict as u32, Ordering::Relaxed);
     CURRENT_ENTITY.store(ent as u32, Ordering::Relaxed);
 
@@ -167,32 +184,22 @@ pub fn enable_autoaim_entity(
     AIM_TARGET[2].store(offset.z, Ordering::Relaxed);
 
     let (start_pitch, start_yaw) = process_cmd::cached_body_angles();
-
     START_PITCH.store(start_pitch, Ordering::Relaxed);
     START_YAW.store(start_yaw, Ordering::Relaxed);
 
-    EASING.store(easing.to_index(), Ordering::Relaxed);
     DURATION_COMPLETED.store(duration == 0, Ordering::Relaxed);
     DURATION_TICKS.store(duration, Ordering::Relaxed);
-    ELAPSED_TICKS.store(0, Ordering::Relaxed);
+    EASING.store(easing.to_index(), Ordering::Relaxed);
     AUTOAIM_ACTIVE.store(true, Ordering::Relaxed);
 
     create_move::subscribe(Subscriber::Autoaim(on_create_move));
 }
 
 pub fn disable_autoaim() {
-    if !AUTOAIM_ACTIVE.swap(false, Ordering::Relaxed) {
-        return;
+    if AUTOAIM_ACTIVE.swap(false, Ordering::Relaxed) {
+        reset_state();
+        create_move::unsubscribe(Subscriber::Autoaim(on_create_move));
     }
-    START_PITCH.store(0.0, Ordering::Relaxed);
-    START_YAW.store(0.0, Ordering::Relaxed);
-    EASING.store(0, Ordering::Relaxed);
-    DURATION_COMPLETED.store(false, Ordering::Relaxed);
-    DURATION_TICKS.store(0, Ordering::Relaxed);
-    ELAPSED_TICKS.store(0, Ordering::Relaxed);
-    CURRENT_EDICT.store(0, Ordering::Relaxed);
-    CURRENT_ENTITY.store(0, Ordering::Relaxed);
-    create_move::unsubscribe(Subscriber::Autoaim(on_create_move));
 }
 
 /// Automatically aims at certain coordinates.
