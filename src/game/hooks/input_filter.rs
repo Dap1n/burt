@@ -10,6 +10,7 @@ use std::{
 };
 
 use crate::{
+    bridge::vtable::is_simulating,
     engine_build::{self, EngineBuild},
     game::signatures::{get_key_bindings_addr, get_key_event_addr},
     log,
@@ -41,11 +42,11 @@ static IGNORE_INPUTS: AtomicBool = AtomicBool::new(false);
 
 #[inline]
 fn should_allow_input(keynum: i32, is_pressed: bool) -> bool {
-    if !IGNORE_INPUTS.load(Ordering::Relaxed) || !is_pressed {
-        return true;
-    }
-
-    if [57, 70].contains(&keynum) {
+    if !IGNORE_INPUTS.load(Ordering::Relaxed)
+        || !is_pressed
+        || !is_simulating()
+        || [57, 70].contains(&keynum)
+    {
         return true;
     }
 
