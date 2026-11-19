@@ -614,10 +614,8 @@ fn upsert_tool(
     new_tool: Tool,
 ) {
     if let Some(idx) = current_tools.iter().position(is_match) {
-        if current_tools[idx] != new_tool {
-            changes.push(ToolChange::Enable(new_tool.clone()));
-            current_tools[idx] = new_tool;
-        }
+        changes.push(ToolChange::Enable(new_tool.clone()));
+        current_tools[idx] = new_tool;
     } else {
         changes.push(ToolChange::Enable(new_tool.clone()));
         current_tools.push(new_tool);
