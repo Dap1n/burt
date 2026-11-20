@@ -14,8 +14,19 @@ pub fn rad_to_deg(rad: f32) -> f32 {
 
 pub type Vec2 = (f32, f32);
 
+pub fn normalize_vec2_unit(v: Vec2) -> Option<Vec2> {
+    let len_sq = v.0 * v.0 + v.1 * v.1;
+
+    if len_sq <= f32::EPSILON || !len_sq.is_finite() {
+        return None;
+    }
+
+    let inv_len = 1.0 / len_sq.sqrt();
+    Some((v.0 * inv_len, v.1 * inv_len))
+}
+
 pub fn normalize_vec2(v: Vec2, move_speed: MoveSpeed) -> Option<Vec2> {
-    let len_sq = v.0.powi(2) + v.1.powi(2);
+    let len_sq = v.0 * v.0 + v.1 * v.1;
 
     if len_sq <= f32::EPSILON || !len_sq.is_finite() {
         return None;

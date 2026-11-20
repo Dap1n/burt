@@ -21,7 +21,7 @@ use crate::{
             create_move::{self, CreateMoveArgs},
             process_cmd::{self, ProcessCmdArgs, schedule_movement},
         },
-        math::{Vec3, deg_to_rad, rad_to_deg},
+        math::{Vec3, deg_to_rad, normalize_vec2_unit, rad_to_deg},
         player,
         provider::provider,
     },
@@ -217,7 +217,7 @@ fn on_process_cmd(args: &mut ProcessCmdArgs) {
     let (pitch, _yaw) = process_cmd::cached_body_angles();
     let will_be_grounded = predict_will_be_grounded(velocity);
 
-    let (side, mut forward) = (
+    let (mut side, mut forward) = (
         PLAN_SIDE.load(Ordering::Relaxed),
         PLAN_FORWARD.load(Ordering::Relaxed),
     );
@@ -226,6 +226,10 @@ fn on_process_cmd(args: &mut ProcessCmdArgs) {
         let c = deg_to_rad(pitch).cos();
         if c.abs() > COS_EPS {
             forward /= c;
+            let Some((new_side, new_forward)) = normalize_vec2_unit((side, forward)) else {
+                return;
+            };
+            (side, forward) = (new_side, new_forward);
         }
     }
 

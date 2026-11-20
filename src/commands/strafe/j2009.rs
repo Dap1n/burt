@@ -16,7 +16,7 @@ use crate::{
             create_move::{self, CreateMoveArgs},
             process_cmd::{self, ProcessCmdArgs, SCHEDULED_MOVEMENT, schedule_movement},
         },
-        math::{deg_to_rad, rad_to_deg},
+        math::{deg_to_rad, normalize_vec2_unit, rad_to_deg},
         player,
         provider::provider,
     },
@@ -121,7 +121,7 @@ fn on_process_cmd(args: &mut ProcessCmdArgs) {
 
     let abs_move_angle_deg = ABS_MOVE_ANGLE.load(Ordering::Relaxed);
 
-    let (mut forward, side) = match params.type_ {
+    let (mut forward, mut side) = match params.type_ {
         StrafeType::Vectorial | StrafeType::VectorialCam => {
             let rel = deg_to_rad(abs_move_angle_deg - yaw);
             (rel.cos(), -rel.sin())
@@ -138,6 +138,10 @@ fn on_process_cmd(args: &mut ProcessCmdArgs) {
         let c = deg_to_rad(pitch).cos();
         if c.abs() > COS_EPS {
             forward /= c;
+            let Some((new_side, new_forward)) = normalize_vec2_unit((side, forward)) else {
+                return;
+            };
+            (side, forward) = (new_side, new_forward);
         }
     }
 
