@@ -4,7 +4,8 @@ use crate::{
     commands::{
         run::{rec, sr_stop, state},
         tas::{
-            self, PARSED_TAS, RAW_LOGGER, RETRY_COUNTER, SESSION_COUNTER, restore, restore_cvars,
+            self, IN_RETRY, PARSED_TAS, RAW_LOGGER, RETRY_COUNTER, SESSION_COUNTER, restore,
+            restore_cvars,
         },
     },
     game::{
@@ -32,6 +33,9 @@ fn on_render(args: &mut RenderViewArgs) {
 }
 
 fn manage_tas() {
+    if IN_RETRY.swap(false, Ordering::Relaxed) {
+        return;
+    }
     match SESSION_COUNTER.fetch_sub(1, Ordering::Relaxed) {
         1 => {
             // TAS finished via new session load

@@ -765,7 +765,7 @@ fn parse_tools(
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Holding {
+pub enum EntityCheck {
     NotChecked,
     Anything,
     Named(Box<str>),
@@ -776,7 +776,8 @@ pub struct CheckParams {
     pub pos: Option<[f32; 3]>,
     pub ang: Option<[f32; 2]>,
     pub vel: Option<f32>,
-    pub holding: Holding,
+    pub holding: EntityCheck,
+    pub captured: EntityCheck,
     pub posepsilon: f32,
     pub angepsilon: f32,
     pub velepsilon: f32,
@@ -789,10 +790,25 @@ fn parse_check_tokens<'a>(
 ) -> TasResult<CheckParams> {
     let mut tokens = tokens.peekable();
 
+    let is_next_keyword = |next: &_| {
+        [
+            "pos",
+            "ang",
+            "vel",
+            "holding",
+            "captured",
+            "posepsilon",
+            "angepsilon",
+            "velepsilon",
+        ]
+        .contains(next)
+    };
+
     let mut pos = None;
     let mut ang = None;
     let mut vel = None;
-    let mut holding = Holding::NotChecked;
+    let mut holding = EntityCheck::NotChecked;
+    let mut captured = EntityCheck::NotChecked;
     let mut posepsilon = 0.5;
     let mut angepsilon = 0.2;
     let mut velepsilon = 1.0;
@@ -897,7 +913,7 @@ fn parse_check_tokens<'a>(
                 vel = Some(speed);
             }
             "holding" => {
-                if holding != Holding::NotChecked {
+                if holding != EntityCheck::NotChecked {
                     return Err(TasError::ParsingError {
                         line_number,
                         line: line.into(),
@@ -905,23 +921,34 @@ fn parse_check_tokens<'a>(
                     });
                 }
 
-                let is_next_keyword = tokens.peek().is_none_or(|&next| {
-                    [
-                        "pos",
-                        "ang",
-                        "vel",
-                        "holding",
-                        "posepsilon",
-                        "angepsilon",
-                        "velepsilon",
-                    ]
-                    .contains(&next)
-                });
-
-                if is_next_keyword {
-                    holding = Holding::Anything;
+                let is_keyword = tokens.peek().is_none_or(is_next_keyword);
+                if is_keyword {
+                    holding = EntityCheck::Anything;
                 } else {
-                    holding = Holding::Named(tokens.next().unwrap().into());
+                    holding = EntityCheck::Named(tokens.next().unwrap().into());
+                }
+            }
+            "captured" => {
+                if engine_build::current_build() != EngineBuild::Project2008 {
+                    return Err(TasError::ParsingError {
+                        line_number,
+                        line: line.into(),
+                        error: Cow::Borrowed("Attempted to use capture check outside Project 2008"),
+                    });
+                }
+                if captured != EntityCheck::NotChecked {
+                    return Err(TasError::ParsingError {
+                        line_number,
+                        line: line.into(),
+                        error: Cow::Borrowed("Duplicate captured given to check tool"),
+                    });
+                }
+
+                let is_keyword = tokens.peek().is_none_or(is_next_keyword);
+                if is_keyword {
+                    captured = EntityCheck::Anything;
+                } else {
+                    captured = EntityCheck::Named(tokens.next().unwrap().into());
                 }
             }
             "posepsilon" => {
@@ -1002,6 +1029,7 @@ fn parse_check_tokens<'a>(
         ang,
         vel,
         holding,
+        captured,
         posepsilon,
         angepsilon,
         velepsilon,

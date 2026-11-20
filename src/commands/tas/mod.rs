@@ -56,6 +56,7 @@ pub static CURRENT_DY: AtomicF32 = AtomicF32::new(0.0);
 pub static CURRENT_COMMANDS: RwLock<Option<Box<str>>> = RwLock::new(None);
 pub static SESSION_COUNTER: AtomicU8 = AtomicU8::new(0);
 pub static RETRY_COUNTER: AtomicU32 = AtomicU32::new(0);
+pub static IN_RETRY: AtomicBool = AtomicBool::new(false);
 pub static PARSED_TAS: RwLock<Option<TasScript>> = RwLock::new(None);
 
 pub static LAST_FPS_MAX: AtomicF32 = AtomicF32::new(60.0);
@@ -268,9 +269,9 @@ fn check_passed(params: &CheckParams) -> bool {
         return false;
     }
     let holding_check_pass = match params.holding {
-        Holding::NotChecked => true,
-        Holding::Anything => player::is_holding(),
-        Holding::Named(ref name) => {
+        EntityCheck::NotChecked => true,
+        EntityCheck::Anything => player::is_holding(),
+        EntityCheck::Named(ref name) => {
             if let Some(ent) = unsafe { player::get_held_object() } {
                 let ent_name = unsafe { entity::entity_name(ent) };
                 let ent_classname = unsafe { entity::entity_classname(ent) };
@@ -282,8 +283,25 @@ fn check_passed(params: &CheckParams) -> bool {
     };
     if !holding_check_pass {
         clog!(err_prefix; "Holding check failed!");
+        return false;
     }
-    holding_check_pass
+    let captured_check_pass = match params.captured {
+        EntityCheck::NotChecked => true,
+        EntityCheck::Anything => player::get_capture_report().is_some(),
+        EntityCheck::Named(ref name) => {
+            if let Some(report) = player::get_capture_report() {
+                let ent_name = unsafe { entity::entity_name(report.entity) };
+                let ent_classname = unsafe { entity::entity_classname(report.entity) };
+                ent_name.as_deref() == Some(name) || ent_classname.as_deref() == Some(name)
+            } else {
+                false
+            }
+        }
+    };
+    if !captured_check_pass {
+        clog!(err_prefix; "Captured check failed!");
+    }
+    captured_check_pass
 }
 
 pub fn set_cvars() {
@@ -449,6 +467,7 @@ pub fn on_create_move(args: &mut CreateMoveArgs) {
                 };
                 *RAW_LOGGER.write().unwrap() = Some(logger);
             }
+            IN_RETRY.store(true, Ordering::Relaxed);
             exec_tas_start(&parsed_tas.start);
             return;
         }
