@@ -73,6 +73,6 @@ pub fn bvar_tas_skip_to(tick: u32) {
 
 /// Whether to globally disable all TAS tools.
 #[burt_command(var = BVAR_TAS_TOOLS_DISABLE)]
-pub fn bvar_tas_tools_disable(enabled: bool) {
-    BVAR_TAS_TOOLS_DISABLE.store(enabled, Ordering::Relaxed);
+pub fn bvar_tas_tools_disable(disable: bool) {
+    BVAR_TAS_TOOLS_DISABLE.store(disable, Ordering::Relaxed);
 }
