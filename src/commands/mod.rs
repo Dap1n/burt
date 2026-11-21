@@ -39,10 +39,10 @@ register_commands! {
     strafe::j2009::burt_strafe => "TAS strafe tool",
     strafe::p2008::burt_strafe => "TAS strafe tool",
     tas::burt_tas_advance => "Advance TAS playback by the specified amount of ticks",
-    tas::burt_tas_pause => "Pause the TAS playback",
+    tas::burt_pause => "Pause the game",
     tas::burt_tas_play | tas::burt_tas_play_autocomplete => "Play a TAS script with given name",
     tas::burt_tas_replay => "Replay the last played TAS",
-    tas::burt_tas_resume => "Resume the TAS playback",
+    tas::burt_resume => "Resume the game",
     tas::burt_tas_stop => "Stop the current TAS",
 
     bvars::bvar_tas_check_disable => "Globally disable the TAS check tool",

@@ -386,8 +386,8 @@ You can see a list of the TAS commands by typing `find burt_tas` / `find bvar_ta
 - `burt_tas_play` - plays the given TAS script.
 - `burt_tas_stop` - Stop the currently playing TAS.
 - `burt_tas_replay` - Replay the last played TAS.
-- `burt_tas_pause` - Pause the TAS playback.
-- `burt_tas_resume` - Resume TAS playback.
+- `burt_pause` - Pause the whole game (and the TAS playback).
+- `burt_resume` - Resume the whole game (and the TAS playback).
 - `burt_tas_advance [ticks]` - Advances TAS playback by the specified amount of ticks, 2 by default.
 
 ------

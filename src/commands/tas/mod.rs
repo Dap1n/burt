@@ -821,10 +821,10 @@ pub fn burt_tas_stop() {
     );
 }
 
-/// Pauses the TAS playback.
-/// Since this command pauses the whole game, it can be used outside TAS too.
+/// Pauses the game.
+/// Since this command pauses the whole game, it can be used during TAS playback too.
 #[burt_command]
-pub fn burt_tas_pause() {
+pub fn burt_pause() {
     TIME_PAUSED.store(true, Ordering::Relaxed);
     if SESSION_COUNTER.load(Ordering::Relaxed) == 1 {
         if engine_build::current_build() == EngineBuild::Project2008 {
@@ -837,10 +837,10 @@ pub fn burt_tas_pause() {
     }
 }
 
-/// Resumes the TAS playback.
-/// Since this command resumes the whole game, it can be used outside TAS too.
+/// Resumes the game.
+/// Since this command resumes the whole game, it can be used during TAS playback too.
 #[burt_command]
-pub fn burt_tas_resume() {
+pub fn burt_resume() {
     TIME_PAUSED.store(false, Ordering::Relaxed);
     if SESSION_COUNTER.load(Ordering::Relaxed) == 1 {
         if engine_build::current_build() == EngineBuild::Project2008 {
