@@ -10,7 +10,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 burt_command = { path = "./burt_command" }
-smallvec = "1.16.5"
+smallvec = "1.16.6"
 pe-sigscan = { version = "0.4", features = ["memchr"] }
 portable-atomic = { version = "1.15", default-features = false, features = [
     "float",
