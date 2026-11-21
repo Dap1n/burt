@@ -34,11 +34,11 @@ pub fn enable_scale(report: CaptureReport, step: ScaleStep) -> i32 {
 /// `step:` target step:
 ///   - `min` — scale to the minimum possible size
 ///   - `max` — scale to the maximum possible size
-///   - `up [N]` — scales up by N steps (1 by default). Example: `burt_scale up_2`
-///   - `down [N]` — scales down by N steps (1 by default). Example: `burt_scale "down 3"`
+///   - `up [N]` — scales up by N steps (1 by default). Example: `burt_scale up 2`
+///   - `down [N]` — scales down by N steps (1 by default). Example: `burt_scale down_3`
 ///   - if integer is provided, scales to the exact step
 #[burt_command]
-pub fn burt_scale(step: ScaleStep) {
+pub fn burt_scale(args: ScaleStep) {
     let Some(report) = player::get_capture_report() else {
         clog!(err_prefix; "No objects captured!");
         return;
@@ -47,5 +47,5 @@ pub fn burt_scale(step: ScaleStep) {
         clog!(err_prefix; "Not in object placement, ignoring");
         return;
     }
-    enable_scale(report, step);
+    enable_scale(report, args);
 }
