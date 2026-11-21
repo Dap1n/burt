@@ -1,12 +1,10 @@
 use std::{
+    mem,
     os::raw::c_void,
-    ptr,
-    sync::{
-        OnceLock,
-        atomic::{AtomicBool, AtomicU64, Ordering},
-    },
+    sync::atomic::{AtomicU64, Ordering},
 };
 
+use detour::static_detour;
 use portable_atomic::AtomicF32;
 
 use crate::{
@@ -21,11 +19,7 @@ use crate::{
         cvars::get_move_speed, hooks::create_move::SCHEDULED_ANGLES, math, modules,
         provider::provider,
     },
-    log,
-    os::*,
 };
-
-pub type ProcessCmdFn = unsafe extern "thiscall" fn(*mut c_void, *mut u8);
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ProcessCmdArgs {
@@ -35,14 +29,9 @@ pub struct ProcessCmdArgs {
 
 define_subscriptions!(ProcessCmdArgs);
 
-static INSTALLED: AtomicBool = AtomicBool::new(false);
-static TARGET: OnceLock<usize> = OnceLock::new();
-static ORIG_BYTES: OnceLock<[u8; 5]> = OnceLock::new();
-static ORIG_FN: OnceLock<ProcessCmdFn> = OnceLock::new();
-
 pub static SCHEDULED_MOVEMENT: AtomicU64 = AtomicU64::new(0);
 
-unsafe extern "thiscall" fn dispatch(this: *mut c_void, cmd: *mut u8) {
+fn dispatch(this: *mut c_void, cmd: *mut u8) {
     cache_body_angles(cmd as *const u8);
 
     let mut args = ProcessCmdArgs { this, cmd };
@@ -71,80 +60,35 @@ unsafe extern "thiscall" fn dispatch(this: *mut c_void, cmd: *mut u8) {
         }
     }
 
-    let (Some(&target), Some(bytes), Some(&orig)) = (TARGET.get(), ORIG_BYTES.get(), ORIG_FN.get())
-    else {
-        return;
-    };
-
     unsafe {
-        let mut old = 0u32;
-        VirtualProtect(target as *const c_void, 5, PAGE_EXECUTE_READWRITE, &mut old);
-        ptr::copy_nonoverlapping(bytes.as_ptr(), target as *mut u8, 5);
-        VirtualProtect(target as *const c_void, 5, old, &mut old);
-
-        orig(args.this, args.cmd);
-
-        let mut old = 0u32;
-        VirtualProtect(target as *const c_void, 5, PAGE_EXECUTE_READWRITE, &mut old);
-        *(target as *mut u8) = 0xE9;
-        *((target + 1) as *mut i32) =
-            (dispatch as *const () as usize).wrapping_sub(target + 5) as i32;
-        VirtualProtect(target as *const c_void, 5, old, &mut old);
+        HOOK.call(this, cmd);
     }
 }
 
-pub(super) unsafe fn install() {
-    if INSTALLED.load(Ordering::Acquire) {
-        return;
-    }
+pub type ProcessCmdFn = unsafe extern "thiscall" fn(*mut c_void, *mut u8);
 
-    let target = modules::get_addr(modules::client(), provider().chl_input_process_cmd_sig());
-
-    unsafe {
-        if let Ok(mut subs) = SUBS.try_lock() {
-            subs.clear();
-        }
-
-        if ORIG_BYTES.get().is_none() {
-            let mut bytes = [0u8; 5];
-            ptr::copy_nonoverlapping(target as *const u8, bytes.as_mut_ptr(), 5);
-            let _ = ORIG_BYTES.set(bytes);
-            let _ = TARGET.set(target);
-            let _ = ORIG_FN.set(std::mem::transmute::<usize, ProcessCmdFn>(target));
-        }
-
-        let mut old = 0u32;
-        VirtualProtect(target as *const c_void, 5, PAGE_EXECUTE_READWRITE, &mut old);
-        *(target as *mut u8) = 0xE9;
-        *((target + 1) as *mut i32) =
-            (dispatch as *const () as usize).wrapping_sub(target + 5) as i32;
-        VirtualProtect(target as *const c_void, 5, old, &mut old);
-    }
-    INSTALLED.store(true, Ordering::Release);
-    log!("[hook] process_cmd installed at {target:#x}");
+static_detour! {
+    static HOOK: unsafe extern "thiscall" fn(*mut c_void, *mut u8);
 }
 
-pub(super) unsafe fn uninstall() {
-    if !INSTALLED.load(Ordering::Acquire) {
-        return;
+pub(super) unsafe fn install() -> Result<(), detour::Error> {
+    let addr = modules::get_addr(modules::client(), provider().chl_input_process_cmd_sig());
+    unsafe {
+        let target: ProcessCmdFn = mem::transmute(addr);
+        HOOK.initialize(target, dispatch)?;
+        HOOK.enable()?;
     }
-    let (Some(&target), Some(bytes)) = (TARGET.get(), ORIG_BYTES.get()) else {
-        return;
-    };
+    Ok(())
+}
 
+pub(super) unsafe fn uninstall() -> Result<(), detour::Error> {
     if let Ok(mut subs) = SUBS.try_lock() {
         subs.clear();
     }
-
     unsafe {
-        let mut old = 0u32;
-        VirtualProtect(target as *const c_void, 5, PAGE_EXECUTE_READWRITE, &mut old);
-        ptr::copy_nonoverlapping(bytes.as_ptr(), target as *mut u8, 5);
-        VirtualProtect(target as *const c_void, 5, old, &mut old);
+        HOOK.disable()?;
     }
-
-    INSTALLED.store(false, Ordering::Release);
-    log!("[hook] process_cmd uninstalled");
+    Ok(())
 }
 
 static CACHED_BODY_PITCH: AtomicF32 = AtomicF32::new(0.0);

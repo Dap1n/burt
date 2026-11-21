@@ -1,12 +1,10 @@
 use std::{
     mem,
     os::raw::c_void,
-    ptr,
-    sync::{
-        OnceLock,
-        atomic::{AtomicBool, AtomicU64, Ordering},
-    },
+    sync::atomic::{AtomicU64, Ordering},
 };
+
+use detour::static_detour;
 
 use crate::{
     bridge::vtable::is_simulating,
@@ -20,12 +18,7 @@ use crate::{
         math, modules,
         provider::provider,
     },
-    log,
-    os::*,
 };
-
-pub type CreateMoveFnP2008 = unsafe extern "thiscall" fn(*mut c_void, f32, u8);
-pub type CreateMoveFnJ2009 = unsafe extern "thiscall" fn(*mut c_void, i32, f32, u8);
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CreateMoveArgs {
@@ -35,13 +28,6 @@ pub struct CreateMoveArgs {
 }
 
 define_subscriptions!(CreateMoveArgs);
-
-static INSTALLED: AtomicBool = AtomicBool::new(false);
-static ORIG_BYTES: OnceLock<[u8; 5]> = OnceLock::new();
-static TARGET: OnceLock<usize> = OnceLock::new();
-
-static ORIG_FN_P2008: OnceLock<CreateMoveFnP2008> = OnceLock::new();
-static ORIG_FN_J2009: OnceLock<CreateMoveFnJ2009> = OnceLock::new();
 
 pub static SCHEDULED_ANGLES: AtomicU64 = AtomicU64::new(u64::MAX);
 
@@ -68,107 +54,65 @@ fn dispatch_inner(this: *mut c_void, sequence_number: i32, frametime: f32, activ
         }
     }
 
-    let (Some(&target), Some(bytes)) = (TARGET.get(), ORIG_BYTES.get()) else {
-        return;
-    };
-
-    let mut old = 0u32;
-    let build = engine_build::current_build();
-    unsafe {
-        VirtualProtect(target as *const c_void, 5, PAGE_EXECUTE_READWRITE, &mut old);
-        ptr::copy_nonoverlapping(bytes.as_ptr(), target as *mut u8, 5);
-        VirtualProtect(target as *const c_void, 5, old, &mut old);
-
-        if build == EngineBuild::Project2008 {
-            if let Some(orig) = ORIG_FN_P2008.get() {
-                orig(args.this, frametime, args.active);
-            }
-        } else if let Some(orig) = ORIG_FN_J2009.get() {
-            orig(args.this, args.sequence_number, frametime, args.active);
+    if engine_build::current_build() == EngineBuild::Project2008 {
+        unsafe {
+            HOOK_P2008.call(this, frametime, active);
         }
-
-        let dispatch_addr = if build == EngineBuild::Project2008 {
-            dispatch_p2008 as *const () as usize
-        } else {
-            dispatch_j2009 as *const () as usize
-        };
-
-        VirtualProtect(target as *const c_void, 5, PAGE_EXECUTE_READWRITE, &mut old);
-        *(target as *mut u8) = 0xE9;
-        *((target + 1) as *mut i32) = (dispatch_addr).wrapping_sub(target + 5) as i32;
-        VirtualProtect(target as *const c_void, 5, old, &mut old);
+    } else {
+        unsafe {
+            HOOK_J2009.call(this, sequence_number, frametime, active);
+        }
     }
 }
 
-unsafe extern "thiscall" fn dispatch_p2008(this: *mut c_void, frametime: f32, active: u8) {
+fn dispatch_p2008(this: *mut c_void, frametime: f32, active: u8) {
     dispatch_inner(this, 0, frametime, active);
 }
 
-unsafe extern "thiscall" fn dispatch_j2009(
-    this: *mut c_void,
-    sequence_number: i32,
-    frametime: f32,
-    active: u8,
-) {
+fn dispatch_j2009(this: *mut c_void, sequence_number: i32, frametime: f32, active: u8) {
     dispatch_inner(this, sequence_number, frametime, active);
 }
 
-pub(super) unsafe fn install() {
-    if INSTALLED.load(Ordering::Acquire) {
-        return;
-    }
+pub type CreateMoveFnP2008 = unsafe extern "thiscall" fn(*mut c_void, f32, u8);
+pub type CreateMoveFnJ2009 = unsafe extern "thiscall" fn(*mut c_void, i32, f32, u8);
 
-    let target = modules::get_addr(modules::client(), provider().cinput_create_move_sig());
-    let build = engine_build::current_build();
-
-    unsafe {
-        if ORIG_BYTES.get().is_none() {
-            let mut bytes = [0u8; 5];
-            ptr::copy_nonoverlapping(target as *const u8, bytes.as_mut_ptr(), 5);
-            let _ = ORIG_BYTES.set(bytes);
-            let _ = TARGET.set(target);
-
-            if build == EngineBuild::Project2008 {
-                let _ = ORIG_FN_P2008.set(mem::transmute::<usize, CreateMoveFnP2008>(target));
-            } else {
-                let _ = ORIG_FN_J2009.set(mem::transmute::<usize, CreateMoveFnJ2009>(target));
-            }
-        }
-
-        let dispatch_addr = if build == EngineBuild::Project2008 {
-            dispatch_p2008 as *const () as usize
-        } else {
-            dispatch_j2009 as *const () as usize
-        };
-
-        let mut old = 0u32;
-        VirtualProtect(target as *const c_void, 5, PAGE_EXECUTE_READWRITE, &mut old);
-        *(target as *mut u8) = 0xE9;
-        *((target + 1) as *mut i32) = (dispatch_addr).wrapping_sub(target + 5) as i32;
-        VirtualProtect(target as *const c_void, 5, old, &mut old);
-    }
-    INSTALLED.store(true, Ordering::Release);
-    log!("[hook] create_move installed at {target:#x}");
+static_detour! {
+    static HOOK_P2008: unsafe extern "thiscall" fn(*mut c_void, f32, u8);
+    static HOOK_J2009: unsafe extern "thiscall" fn(*mut c_void, i32, f32, u8);
 }
 
-pub(super) unsafe fn uninstall() {
-    if !INSTALLED.load(Ordering::Acquire) {
-        return;
+pub(super) unsafe fn install(build: EngineBuild) -> Result<(), detour::Error> {
+    let addr = modules::get_addr(modules::client(), provider().cinput_create_move_sig());
+    if build == EngineBuild::Project2008 {
+        unsafe {
+            let target: CreateMoveFnP2008 = mem::transmute(addr);
+            HOOK_P2008.initialize(target, dispatch_p2008)?;
+            HOOK_P2008.enable()?;
+        }
+    } else {
+        unsafe {
+            let target: CreateMoveFnJ2009 = mem::transmute(addr);
+            HOOK_J2009.initialize(target, dispatch_j2009)?;
+            HOOK_J2009.enable()?;
+        }
     }
-    let (Some(&target), Some(bytes)) = (TARGET.get(), ORIG_BYTES.get()) else {
-        return;
-    };
+    Ok(())
+}
+
+pub(super) unsafe fn uninstall(build: EngineBuild) -> Result<(), detour::Error> {
     if let Ok(mut subs) = SUBS.try_lock() {
         subs.clear();
     }
-    let mut old = 0u32;
-    unsafe {
-        VirtualProtect(target as *const c_void, 5, PAGE_EXECUTE_READWRITE, &mut old);
-        ptr::copy_nonoverlapping(bytes.as_ptr(), target as *mut u8, 5);
-        VirtualProtect(target as *const c_void, 5, old, &mut old);
+    if build == EngineBuild::Project2008 {
+        unsafe {
+            HOOK_P2008.disable()?;
+        }
+    } else {
+        unsafe {
+            HOOK_J2009.disable()?;
+        }
     }
-    INSTALLED.store(false, Ordering::Release);
-    log!("[hook] create_move uninstalled");
+    Ok(())
 }
 
 pub fn schedule_angles(target_pitch: f32, target_yaw: f32) {

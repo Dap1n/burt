@@ -1,5 +1,7 @@
 use std::cmp::Ordering;
 
+use crate::engine_build;
+
 pub mod accumulate_time;
 pub mod create_move;
 pub mod input_filter;
@@ -7,26 +9,30 @@ pub mod physics;
 pub mod process_cmd;
 pub mod render_view;
 
-pub fn install_all() {
+pub fn install_all() -> Result<(), detour::Error> {
+    let build = engine_build::current_build();
     unsafe {
-        accumulate_time::install();
-        create_move::install();
-        input_filter::install();
-        physics::install();
-        process_cmd::install();
-        render_view::install();
+        accumulate_time::install()?;
+        create_move::install(build)?;
+        input_filter::install(build)?;
+        physics::install()?;
+        process_cmd::install()?;
+        render_view::install()?;
     }
+    Ok(())
 }
 
-pub fn uninstall_all() {
+pub fn uninstall_all() -> Result<(), detour::Error> {
+    let build = engine_build::current_build();
     unsafe {
-        accumulate_time::uninstall();
-        create_move::uninstall();
-        input_filter::uninstall();
-        physics::uninstall();
-        process_cmd::uninstall();
-        render_view::uninstall();
+        accumulate_time::uninstall()?;
+        create_move::uninstall(build)?;
+        input_filter::uninstall(build)?;
+        physics::uninstall()?;
+        process_cmd::uninstall()?;
+        render_view::uninstall()?;
     }
+    Ok(())
 }
 
 type FnRef<T> = fn(&mut T);

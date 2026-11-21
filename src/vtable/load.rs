@@ -29,7 +29,7 @@ pub fn load(interface_factory: *const c_void) -> Successful {
     let _ = ENGINE.set(engine);
 
     bridge::commands::register_plugin_commands(factory);
-    hooks::install_all();
+    hooks::install_all().expect("Failed to install hooks");
 
     clog!(prefix;
         [Color::WHITE =>
