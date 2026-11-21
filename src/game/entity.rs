@@ -4,10 +4,7 @@ use std::{
     os::raw::{c_char, c_void},
 };
 
-use crate::{
-    game::{math::Vec3, provider::provider, signatures::get_pentity_addr},
-    os::*,
-};
+use crate::game::{math::Vec3, provider::provider, signatures::get_pentity_addr};
 
 #[repr(C)]
 pub struct edict_t {
@@ -36,9 +33,7 @@ pub unsafe fn resolve_handle(handle: u32) -> Option<(*const u8, u32)> {
     }
 
     let serial = handle >> NUM_ENT_ENTRY_BITS;
-
     let (_, ent) = unsafe { edict_entity_by_index(entry as i32)? };
-
     let ent_ref_handle = unsafe { *(ent.add(provider().entity_m_ref_ehandle_off()) as *const u32) };
     let ent_serial = ent_ref_handle >> NUM_ENT_ENTRY_BITS;
     (ent_serial == serial).then_some((ent, serial))
@@ -52,39 +47,13 @@ pub unsafe fn get_edict_of_ent_index(ent_index: i32) -> *mut edict_t {
     }
 }
 
-fn mem_ok(addr: usize, len: usize) -> bool {
-    if !(0x10000..0x8000_0000).contains(&addr) {
-        return false;
-    }
-    unsafe {
-        let mut mbi: MEMORY_BASIC_INFORMATION = mem::zeroed();
-        let ret = VirtualQuery(
-            addr as *const c_void,
-            &mut mbi,
-            mem::size_of::<MEMORY_BASIC_INFORMATION>(),
-        );
-        if ret == 0
-            || mbi.state != MEM_COMMIT
-            || mbi.protect & PAGE_GUARD != 0
-            || mbi.protect & PAGE_NOACCESS != 0
-        {
-            return false;
-        }
-        addr + len <= (mbi.base_address as usize) + mbi.region_size
-    }
-}
-
 pub unsafe fn edict_entity_by_index(index: i32) -> Option<(*mut edict_t, *const u8)> {
     let edict = unsafe { get_edict_of_ent_index(index) };
     if edict.is_null() {
         return None;
     }
     let ent = unsafe { entity_from_edict(edict) };
-    if ent.is_null() {
-        None
-    } else {
-        Some((edict, ent))
-    }
+    (!ent.is_null()).then_some((edict, ent))
 }
 
 pub unsafe fn edict_entity_by_name(name: &str, index: i32) -> Option<(*mut edict_t, *const u8)> {
@@ -115,9 +84,6 @@ pub unsafe fn entity_from_edict(edict: *const edict_t) -> *const u8 {
 }
 
 pub unsafe fn entity_origin(ent: *const u8) -> Option<Vec3> {
-    if !mem_ok(ent as usize + provider().entity_origin_off(), 12) {
-        return None;
-    }
     let origin_off = provider().entity_origin_off();
     unsafe {
         Some((
@@ -129,13 +95,9 @@ pub unsafe fn entity_origin(ent: *const u8) -> Option<Vec3> {
 }
 
 unsafe fn read_cstr_field(ent: *const u8, offset: usize) -> Option<String> {
-    if !mem_ok(ent as usize + offset, 4) {
-        return None;
-    }
-
     let ptr = unsafe { *(ent.add(offset) as *const *const c_char) };
 
-    if ptr.is_null() || !mem_ok(ptr as usize, 2) {
+    if ptr.is_null() {
         return None;
     }
 
