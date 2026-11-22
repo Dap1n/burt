@@ -2,7 +2,7 @@ use crate::register_commands;
 
 mod absmov;
 mod autoaim;
-mod autojump;
+pub mod autojump;
 pub mod bvars;
 mod clear_mdmp;
 mod decel;

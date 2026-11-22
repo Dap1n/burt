@@ -1,5 +1,5 @@
 use crate::{
-    commands::p2008::scale::ScaleStep,
+    commands::{autojump::DuckState, p2008::scale::ScaleStep},
     structs::{Color, Coordinates, Easing, TargetEntity},
 };
 
@@ -234,5 +234,11 @@ impl BurtParam for ScaleStep {
         } else {
             Ok(Self::Relative(-n))
         }
+    }
+}
+
+impl BurtParam for DuckState {
+    fn from_input(input: &str) -> Result<Self, &'static str> {
+        Ok(Self::from_str(input))
     }
 }

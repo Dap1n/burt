@@ -12,6 +12,7 @@ use smallvec::SmallVec;
 
 use crate::{
     commands::{
+        autojump::DuckState,
         p2008::scale::ScaleStep,
         strafe::{
             math,
@@ -232,7 +233,7 @@ pub enum Tool {
         easing: Easing,
     },
     Autojump {
-        ducked: bool,
+        duck_state: DuckState,
     },
     Absmov {
         angle: f32,
@@ -698,12 +699,21 @@ fn parse_tools(
                 );
             }
             "autojump" => {
-                let ducked = parse_autojump_tokens(&mut tokens, line_number, line)?;
+                let duck_state = parse_autojump_tokens(&mut tokens, line_number, line)?;
+                if duck_state == Some(DuckState::Full)
+                    && engine_build::current_build() != EngineBuild::Project2008
+                {
+                    return Err(TasError::ParsingError {
+                        line_number,
+                        line: line.into(),
+                        error: Cow::Borrowed("Attempted to use full ducking outside Project 2008"),
+                    });
+                }
                 upsert_or_disable_tool(
                     &mut changes,
                     current_tools,
                     &|t| matches!(t, Tool::Autojump { .. }),
-                    ducked.map(|ducked| Tool::Autojump { ducked }),
+                    duck_state.map(|duck_state| Tool::Autojump { duck_state }),
                     ToolKind::Autojump,
                 );
             }
@@ -1259,8 +1269,7 @@ fn parse_autojump_tokens<'a>(
     tokens: &mut impl Iterator<Item = &'a str>,
     line_number: u32,
     line: &str,
-) -> TasResult<Option<bool>> {
-    let mut ducked = false;
+) -> TasResult<Option<DuckState>> {
     for (i, token) in tokens.enumerate() {
         if i != 0 {
             return Err(TasError::ParsingError {
@@ -1269,13 +1278,12 @@ fn parse_autojump_tokens<'a>(
                 error: Cow::Borrowed("Expected not more than 1 token in autojump"),
             });
         }
-        match token {
-            "off" => return Ok(None),
-            "ducked" => ducked = true,
-            _ => (),
+        if token == "off" {
+            return Ok(None);
         }
+        return Ok(Some(DuckState::from_str(token)));
     }
-    Ok(Some(ducked))
+    Ok(Some(DuckState::Disabled))
 }
 
 fn parse_absmov_tokens<'a>(

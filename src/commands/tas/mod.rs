@@ -184,8 +184,8 @@ fn handle_tool_change(change: &ToolChange) {
                 *easing,
             );
         }
-        &ToolChange::Enable(Tool::Autojump { ducked }) => {
-            autojump::enable_autojump(ducked);
+        &ToolChange::Enable(Tool::Autojump { duck_state }) => {
+            autojump::enable_autojump(duck_state);
         }
         &ToolChange::Enable(Tool::Absmov { angle, strength }) => {
             absmov::enable_absmov(angle, strength);
