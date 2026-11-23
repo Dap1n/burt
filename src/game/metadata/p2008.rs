@@ -3,8 +3,8 @@ use crate::game::{Project2008, math::Vec3};
 use super::MetadataProvider;
 
 impl MetadataProvider for Project2008 {
-    fn main_folder(&self) -> &'static str {
-        "p2008"
+    fn main_folders(&self) -> &'static [&'static str] {
+        &["aperture", "p2008"]
     }
     fn tas_extension(&self) -> &'static str {
         ".fstas"

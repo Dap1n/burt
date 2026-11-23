@@ -24,7 +24,7 @@ pub fn burt_sr_start(use_vault_save: Option<bool>) {
         return;
     }
 
-    let main_folder = provider().main_folder();
+    let main_folder = provider().main_folders()[0];
 
     let vault_save_exists: Option<bool> = use_vault_save.unwrap_or(true).then(|| {
         fs::read_dir(format!("{main_folder}/SAVE"))

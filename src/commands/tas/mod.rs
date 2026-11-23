@@ -1,5 +1,6 @@
 use std::{
-    fs,
+    fs::{self, DirEntry, ReadDir},
+    io,
     os::raw::c_void,
     path::Path,
     sync::{
@@ -74,22 +75,39 @@ pub static LAST_JOYSTICK: AtomicBool = AtomicBool::new(true);
 
 pub static LAST_PLAYED_TAS: RwLock<Option<Box<str>>> = RwLock::new(None);
 
+fn contains_recursive(read_dir: ReadDir, check: &impl Fn(DirEntry) -> bool) -> io::Result<bool> {
+    for entry in read_dir.filter_map(|x| x.ok()) {
+        if (entry.file_type()?.is_dir() && contains_recursive(fs::read_dir(entry.path())?, check)?)
+            || check(entry)
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 fn is_save_exists(name: &str) -> bool {
-    let Ok(read_dir) = fs::read_dir(format!("./{}/SAVE", provider().main_folder())) else {
-        return false;
-    };
-    read_dir
-        .filter_map(|x| x.ok())
-        .any(|x| x.file_name().to_str().and_then(|x| x.strip_suffix(".sav")) == Some(name))
+    provider().main_folders().iter().any(|main_folder| {
+        let Ok(read_dir) = fs::read_dir(format!("./{main_folder}/SAVE")) else {
+            return false;
+        };
+        let found = contains_recursive(read_dir, &|x| {
+            x.file_name().to_str().and_then(|x| x.strip_suffix(".sav")) == Some(name)
+        });
+        matches!(found, Ok(true))
+    })
 }
 
 fn is_map_exists(name: &str) -> bool {
-    let Ok(read_dir) = fs::read_dir(format!("./{}/maps", provider().main_folder())) else {
-        return false;
-    };
-    read_dir
-        .filter_map(|x| x.ok())
-        .any(|x| x.file_name().to_str().and_then(|x| x.strip_suffix(".bsp")) == Some(name))
+    provider().main_folders().iter().any(|main_folder| {
+        let Ok(read_dir) = fs::read_dir(format!("./{main_folder}/maps")) else {
+            return false;
+        };
+        let found = contains_recursive(read_dir, &|x| {
+            x.file_name().to_str().and_then(|x| x.strip_suffix(".bsp")) == Some(name)
+        });
+        matches!(found, Ok(true))
+    })
 }
 
 fn disable_all_tools() {

@@ -3,8 +3,8 @@ use crate::game::{July2009, math::Vec3};
 use super::MetadataProvider;
 
 impl MetadataProvider for July2009 {
-    fn main_folder(&self) -> &'static str {
-        "portal2"
+    fn main_folders(&self) -> &'static [&'static str] {
+        &["portal2"]
     }
     fn tas_extension(&self) -> &'static str {
         ".p2btas"

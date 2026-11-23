@@ -34,7 +34,7 @@ pub fn stop_internal(automatic: bool) {
         } else {
             "Speedrun is stopped. Recorded to "
         }],
-        [Color::LIME => "{}/records/{folder_name}", provider().main_folder()],
+        [Color::LIME => "{}/records/{folder_name}", provider().main_folders()[0]],
     );
 }
 
