@@ -76,10 +76,8 @@ pub fn create_plugin(requested_name: &str) -> Option<*mut BurtPlugin> {
     manage_crash_reports();
 
     let instance = if build == EngineBuild::Project2008 {
-        let _ = fs::create_dir("p2008/records");
         BurtPlugin::new(&ALIEN_SWARM_VTABLE)
     } else {
-        let _ = fs::create_dir("portal2/records");
         BurtPlugin::new(&JULY_2009_VTABLE)
     };
 

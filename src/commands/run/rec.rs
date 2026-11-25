@@ -36,7 +36,7 @@ fn sanitize(map_name: &str) -> Cow<'_, str> {
 fn get_filename(map_name: &str) -> String {
     let sanitized = sanitize(map_name);
     let ts = format_local_time(RECORDS_FORMAT);
-    format!("burt_{sanitized}_{ts}")
+    format!("{sanitized}_{ts}")
 }
 
 pub fn on_map_ready(map_name: &str) {

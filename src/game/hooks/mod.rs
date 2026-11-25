@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 
 use crate::engine_build;
 
+pub mod accept_input;
 pub mod accumulate_time;
 pub mod create_move;
 pub mod input_filter;
@@ -13,6 +14,7 @@ pub fn install_all() -> Result<(), detour::Error> {
     let build = engine_build::current_build();
     unsafe {
         accumulate_time::install()?;
+        accept_input::install(build)?;
         create_move::install(build)?;
         input_filter::install(build)?;
         physics::install()?;
@@ -26,6 +28,7 @@ pub fn uninstall_all() -> Result<(), detour::Error> {
     let build = engine_build::current_build();
     unsafe {
         accumulate_time::uninstall()?;
+        accept_input::uninstall(build)?;
         create_move::uninstall(build)?;
         input_filter::uninstall(build)?;
         physics::uninstall()?;

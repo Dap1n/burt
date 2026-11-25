@@ -48,6 +48,9 @@ impl OffsetsProvider for July2009 {
     }
 
     // --- server.dll Signatures ---
+    fn accept_input_sig(&self) -> Signature {
+        unimplemented!() // only used in P2008
+    }
     fn physics_simulate_sig(&self) -> Signature {
         pattern![
             0x83, 0xEC, 0x28, 0x55, 0x57, 0x6A, 0x04, 0x33, 0xED, 0x55, 0x68, _, _, _, _, 0x55,

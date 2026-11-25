@@ -1,5 +1,3 @@
-use crate::game::math::Vec3;
-
 pub mod j2009;
 pub mod p2008;
 
@@ -9,7 +7,6 @@ pub trait MetadataProvider: Send + Sync {
     fn tas_extension(&self) -> &'static str;
     fn first_map(&self) -> &'static str;
     fn last_map(&self) -> &'static str;
-    fn in_end_position(&self, view: Vec3) -> bool;
     fn tickrate(&self) -> f32;
     fn move_speed(&self) -> f32;
 }

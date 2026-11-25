@@ -15,6 +15,7 @@ pub trait OffsetsProvider: Send + Sync {
     fn action_offset(&self, action: Action) -> (usize, usize);
 
     // --- server.dll Signatures ---
+    fn accept_input_sig(&self) -> Signature;
     fn physics_simulate_sig(&self) -> Signature;
     fn scroll_scale_sig(&self) -> Signature;
     fn select_photo_sig(&self) -> Signature;

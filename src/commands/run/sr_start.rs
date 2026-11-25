@@ -54,7 +54,7 @@ pub fn burt_sr_start(use_vault_save: Option<bool>) {
     );
     log!("[sr_start] Recording demos to {folder}");
 
-    let _ = fs::create_dir(format!("{main_folder}/records/{folder}"));
+    let _ = fs::create_dir_all(format!("{main_folder}/records/{folder}"));
 
     let with_vault_save = vault_save_exists.unwrap_or_default();
     *state::RUN_STATE.write().unwrap() = RunState::Speedrun {
