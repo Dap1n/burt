@@ -3,24 +3,28 @@ use crate::game::cinput::Action;
 pub mod j2009;
 pub mod p2008;
 
+type Signature = &'static [Option<u8>];
+
 /// The interface defining all memory layouts and signatures required by the plugin.
 pub trait OffsetsProvider: Send + Sync {
     // --- client.dll Signatures ---
-    fn cinput_create_move_sig(&self) -> &'static [Option<u8>];
-    fn chl_input_process_cmd_sig(&self) -> &'static [Option<u8>];
-    fn cviewrender_render_view_sig(&self) -> &'static [Option<u8>];
-    fn get_button_bits_sig(&self) -> &'static [Option<u8>];
+    fn cinput_create_move_sig(&self) -> Signature;
+    fn chl_input_process_cmd_sig(&self) -> Signature;
+    fn cviewrender_render_view_sig(&self) -> Signature;
+    fn get_button_bits_sig(&self) -> Signature;
     fn action_offset(&self, action: Action) -> (usize, usize);
 
     // --- server.dll Signatures ---
-    fn physics_simulate_sig(&self) -> &'static [Option<u8>];
-    fn scroll_scale_sig(&self) -> &'static [Option<u8>];
+    fn physics_simulate_sig(&self) -> Signature;
+    fn scroll_scale_sig(&self) -> Signature;
+    fn select_photo_sig(&self) -> Signature;
 
     // --- engine.dll Signatures ---
-    fn p_entity_sig(&self) -> &'static [Option<u8>];
-    fn key_event_sig(&self) -> &'static [Option<u8>];
-    fn host_filter_time_sig(&self) -> &'static [Option<u8>];
-    fn accumulator_sig(&self) -> &'static [Option<u8>];
+    fn p_entity_sig(&self) -> Signature;
+    fn key_event_sig(&self) -> Signature;
+    fn host_filter_time_sig(&self) -> Signature;
+    fn accumulator_sig(&self) -> Signature;
+    fn next_photo_sig(&self) -> Signature;
 
     // --- engine.dll Offsets ---
     fn key_bindings_offset(&self) -> usize;

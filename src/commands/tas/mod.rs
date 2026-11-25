@@ -145,6 +145,7 @@ pub fn restore() {
 fn handle_tool_change(change: &ToolChange) {
     match change {
         ToolChange::Enable(Tool::Check { .. }) => (), // already handled
+        ToolChange::Enable(Tool::Photo { .. }) => (), // already handled
         ToolChange::Enable(Tool::Scale { .. }) => (), // already handled
         &ToolChange::Enable(Tool::Setang {
             pitch,
@@ -500,9 +501,34 @@ pub fn on_create_move(args: &mut CreateMoveArgs) {
         if let Some(actions_release) = intent.actions_release {
             actions_release.for_each(|action| action.release(0));
         }
-        let scale = if let Some(tools_changes) = intent.tools
+        let mut commands = String::new();
+        if !tools_disable
+            && let Some(tools_changes) = intent.tools
+            && let Some(photo) = tools_changes.iter().find_map(|t| {
+                if let &ToolChange::Enable(Tool::Photo { photo }) = t {
+                    Some(photo)
+                } else {
+                    None
+                }
+            })
+        {
+            match photo {
+                SelectPhoto::Photo1 => player::select_photo(0),
+                SelectPhoto::Photo2 => player::select_photo(1),
+                SelectPhoto::Photo3 => player::select_photo(2),
+                SelectPhoto::NextPhoto => player::next_photo(),
+            }
+            commands.push_str(match photo {
+                SelectPhoto::Photo1 => "select_photo1;",
+                SelectPhoto::Photo2 => "select_photo2;",
+                SelectPhoto::Photo3 => "select_photo3;",
+                SelectPhoto::NextPhoto => "next_photo;",
+            });
+        }
+        if !tools_disable
+            && let Some(tools_changes) = intent.tools
             && let Some(step) = tools_changes.iter().find_map(|t| {
-                if let ToolChange::Enable(Tool::Scale { step }) = t {
+                if let &ToolChange::Enable(Tool::Scale { step }) = t {
                     Some(step)
                 } else {
                     None
@@ -511,37 +537,27 @@ pub fn on_create_move(args: &mut CreateMoveArgs) {
             && let Some(report) = player::get_capture_report()
             && report.in_placement
         {
-            scale::enable_scale(report, *step)
-        } else {
-            0
-        };
-        if !BVAR_TAS_COMMANDS_DISABLE.load(Ordering::Relaxed)
-            && let Some(commands) = intent.commands
-            && let Some(engine) = ENGINE.get()
-        {
-            engine.execute(commands, true);
-            let commands = if scale != 0 {
+            let scale = scale::enable_scale(report, step);
+            if scale != 0 {
                 let s = if scale > 0 {
                     "mwheel_down;"
                 } else {
                     "mwheel_up;"
                 };
-                (s.repeat(scale.unsigned_abs() as usize) + commands).into()
-            } else {
-                commands.into()
-            };
-            CURRENT_COMMANDS.write().unwrap().replace(commands);
-        } else if scale != 0 {
-            let s = if scale > 0 {
-                "mwheel_down;"
-            } else {
-                "mwheel_up;"
-            };
-            CURRENT_COMMANDS.write().unwrap().replace(
-                s.repeat(scale.unsigned_abs() as usize)
-                    .trim_end_matches(';')
-                    .into(),
-            );
+                commands.push_str(&s.repeat(scale.unsigned_abs() as usize));
+            }
+        }
+        if !BVAR_TAS_COMMANDS_DISABLE.load(Ordering::Relaxed)
+            && let Some(intent_commands) = intent.commands
+            && let Some(engine) = ENGINE.get()
+        {
+            engine.execute(intent_commands, true);
+            commands.push_str(intent_commands);
+        } else if commands.ends_with(';') {
+            commands.pop();
+        }
+        if !commands.is_empty() {
+            CURRENT_COMMANDS.write().unwrap().replace(commands.into());
         }
         if !tools_disable && let Some(tools_changes) = intent.tools {
             tools_changes.iter().for_each(handle_tool_change);

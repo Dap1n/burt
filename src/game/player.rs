@@ -7,10 +7,12 @@ use crate::game::{entity, math::Vec3, provider::provider, signatures};
 
 pub static PLAYER: AtomicUsize = AtomicUsize::new(0);
 
+#[inline]
 pub fn set(ptr: usize) {
     PLAYER.store(ptr, Ordering::Relaxed);
 }
 
+#[inline]
 pub fn ptr() -> *const u8 {
     PLAYER.load(Ordering::Relaxed) as *const u8
 }
@@ -64,7 +66,6 @@ pub fn surface_friction() -> f32 {
     if p.is_null() {
         return 1.0;
     }
-
     unsafe { *(p.add(provider().player_surface_friction_off()) as *const f32) }
 }
 
@@ -165,6 +166,26 @@ pub fn execute_scaling(mut scale: i32) -> bool {
         (0..scale).for_each(|_| scroll_scale(weapon_ent, direction))
     }
     true
+}
+
+type FnNextPhoto = unsafe extern "cdecl" fn();
+
+#[inline]
+pub fn next_photo() {
+    unsafe {
+        let next_photo_fn: FnNextPhoto = mem::transmute(signatures::get_next_photo_addr());
+        next_photo_fn();
+    }
+}
+
+type FnSelectPhoto = unsafe extern "cdecl" fn(n: i32);
+
+#[inline]
+pub fn select_photo(n: i32) {
+    unsafe {
+        let select_photo_fn: FnSelectPhoto = mem::transmute(signatures::get_select_photo_addr());
+        select_photo_fn(n);
+    }
 }
 
 #[derive(Debug, Clone)]

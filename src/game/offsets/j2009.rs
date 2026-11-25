@@ -2,18 +2,18 @@ use pe_sigscan::pattern;
 
 use crate::game::{July2009, cinput::Action};
 
-use super::OffsetsProvider;
+use super::{OffsetsProvider, Signature};
 
 impl OffsetsProvider for July2009 {
     // --- client.dll Signatures ---
-    fn cinput_create_move_sig(&self) -> &'static [Option<u8>] {
+    fn cinput_create_move_sig(&self) -> Signature {
         pattern![
             0x83, 0xEC, 0x18, 0x55, 0x56, 0x57, 0x8B, 0xF9, 0x8B, 0x0D, _, _, _, _, 0x8B, 0x01,
             0x8B, 0x90, 0x00, 0x02, 0x00, 0x00, 0xFF, 0xD2,
         ] // 0xFC630
     }
 
-    fn chl_input_process_cmd_sig(&self) -> &'static [Option<u8>] {
+    fn chl_input_process_cmd_sig(&self) -> Signature {
         pattern![
             0x8B, 0x0D, _, _, _, _, 0x8B, 0x01, 0x8B, 0x90, 0x58, 0x01, 0x00, 0x00, 0xFF, 0xD2,
             0x84, 0xC0, 0x74, _, 0x8B, 0x44, 0x24, 0x04, 0x0F, 0x57, 0xC0, 0x33, 0xC9, 0x89, 0x48,
@@ -21,7 +21,7 @@ impl OffsetsProvider for July2009 {
         ] // 0xF9670
     }
 
-    fn cviewrender_render_view_sig(&self) -> &'static [Option<u8>] {
+    fn cviewrender_render_view_sig(&self) -> Signature {
         pattern![
             0x81, 0xEC, 0xBC, 0x01, 0x00, 0x00, 0x53, 0x55, 0x8B, 0xE9, 0x6A, 0x00, 0x8D, 0x8D,
             0xFC, 0x03, 0x00, 0x00, 0xE8, _, _, _, _, 0x8B, 0x0D, _, _, _, _, 0x8B, 0x01, 0x8B,
@@ -29,7 +29,7 @@ impl OffsetsProvider for July2009 {
         ] // 0x181120
     }
 
-    fn get_button_bits_sig(&self) -> &'static [Option<u8>] {
+    fn get_button_bits_sig(&self) -> Signature {
         pattern![
             0x83, 0xEC, 0x08, 0x55, 0x56, 0x8B, 0xF1, 0x8B, 0x0D, _, _, _, _, 0x8B, 0x01, 0x8B,
             0x90, 0x00, 0x02, 0x00, 0x00, 0x57, 0x89, 0x74, 0x24, 0x0C, 0xFF, 0xD2,
@@ -48,26 +48,33 @@ impl OffsetsProvider for July2009 {
     }
 
     // --- server.dll Signatures ---
-    fn physics_simulate_sig(&self) -> &'static [Option<u8>] {
+    fn physics_simulate_sig(&self) -> Signature {
         pattern![
             0x83, 0xEC, 0x28, 0x55, 0x57, 0x6A, 0x04, 0x33, 0xED, 0x55, 0x68, _, _, _, _, 0x55,
             0x8B, 0xF9, 0x8B, 0x0D, _, _, _, _, 0x68, _, _, _, _, 0xFF, 0x15, _, _, _, _,
         ] // 0x1C0920
     }
 
-    fn scroll_scale_sig(&self) -> &'static [Option<u8>] {
-        unimplemented!() // Unique to F-Stop
+    // Unique to F-Stop
+    fn scroll_scale_sig(&self) -> Signature {
+        unimplemented!()
+    }
+    fn select_photo_sig(&self) -> Signature {
+        unimplemented!()
+    }
+    fn next_photo_sig(&self) -> Signature {
+        unimplemented!()
     }
 
     // --- engine.dll Signatures ---
-    fn p_entity_sig(&self) -> &'static [Option<u8>] {
+    fn p_entity_sig(&self) -> Signature {
         pattern![
             0x56, 0x8B, 0x74, 0x24, 0x08, 0x85, 0xF6, 0x7C, _, 0x3B, 0x35, _, _, _, _, 0x7C, _,
             0x56, 0x68, _, _, _, _,
         ] // 0x98640
     }
 
-    fn key_event_sig(&self) -> &'static [Option<u8>] {
+    fn key_event_sig(&self) -> Signature {
         pattern![
             0x8B, 0x44, 0x24, 0x04, 0x83, 0xEC, 0x10, 0x57, 0x50, 0x68, 0xD3, 0x03, 0x00, 0x00,
             0x68, _, _, _, _, 0x8D, 0x4C, 0x24, 0x10, 0xE8, _, _, _, _, 0x8B, 0x7C, 0x24, 0x1C,
@@ -75,7 +82,7 @@ impl OffsetsProvider for July2009 {
         ] // 0x62790
     }
 
-    fn host_filter_time_sig(&self) -> &'static [Option<u8>] {
+    fn host_filter_time_sig(&self) -> Signature {
         pattern![
             0x51, 0xF3, 0x0F, 0x10, 0x05, _, _, _, _, 0xF3, 0x0F, 0x58, 0x44, 0x24, 0x08, 0x8B,
             0x0D, _, _, _, _, 0xF3, 0x0F, 0x11, 0x05, _, _, _, _, 0x8B, 0x01, 0x8B, 0x50, 0x20,
@@ -83,7 +90,7 @@ impl OffsetsProvider for July2009 {
         ] // 0x511E0
     }
 
-    fn accumulator_sig(&self) -> &'static [Option<u8>] {
+    fn accumulator_sig(&self) -> Signature {
         pattern![
             0xF3, 0x0F, 0x58, 0x05, _, _, _, _, 0xF3, 0x0F, 0x11, 0x05, _, _, _, _
         ] // 0x53467

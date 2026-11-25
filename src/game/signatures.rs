@@ -8,9 +8,21 @@ use crate::{
 static ACCUMULATOR_ADDR: OnceLock<usize> = OnceLock::new();
 
 define_get_addr!(
-    SCROLL_SCALE,
+    SCROLL_SCALE_ADDR,
     get_scroll_scale_addr,
     scroll_scale_sig,
+    modules::server(),
+);
+define_get_addr!(
+    SELECT_PHOTO_ADDR,
+    get_select_photo_addr,
+    select_photo_sig,
+    modules::server(),
+);
+define_get_addr!(
+    NEXT_PHOTO_ADDR,
+    get_next_photo_addr,
+    next_photo_sig,
     modules::server(),
 );
 define_get_addr!(

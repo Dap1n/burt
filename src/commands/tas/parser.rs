@@ -207,6 +207,9 @@ pub enum Tool {
     Check {
         params: CheckParams,
     },
+    Photo {
+        photo: SelectPhoto,
+    },
     Scale {
         step: ScaleStep,
     },
@@ -664,6 +667,15 @@ fn parse_tools(
                     Tool::Check { params },
                 );
             }
+            "photo" => {
+                let photo = parse_photo_tokens(&mut tokens, line_number, line)?;
+                upsert_tool(
+                    &mut changes,
+                    current_tools,
+                    &|t| matches!(t, Tool::Photo { .. }),
+                    Tool::Photo { photo },
+                );
+            }
             "scale" => {
                 let step = parse_scale_tokens(&mut tokens, line_number, line)?;
                 upsert_tool(
@@ -1044,6 +1056,51 @@ fn parse_check_tokens<'a>(
         angepsilon,
         velepsilon,
     })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SelectPhoto {
+    Photo1,
+    Photo2,
+    Photo3,
+    NextPhoto,
+}
+
+fn parse_photo_tokens<'a>(
+    tokens: &mut impl Iterator<Item = &'a str>,
+    line_number: u32,
+    line: &str,
+) -> TasResult<SelectPhoto> {
+    if engine_build::current_build() != EngineBuild::Project2008 {
+        return Err(TasError::ParsingError {
+            line_number,
+            line: line.into(),
+            error: Cow::Borrowed("Requested photo tool outside Project 2008"),
+        });
+    }
+
+    let token = tokens.next().ok_or_else(|| TasError::ParsingError {
+        line_number,
+        line: line.into(),
+        error: Cow::Borrowed("Expected a photo number or token next"),
+    })?;
+
+    if let Ok(photo_number @ 1..=3) = token.parse::<u8>() {
+        match photo_number {
+            1 => Ok(SelectPhoto::Photo1),
+            2 => Ok(SelectPhoto::Photo2),
+            3 => Ok(SelectPhoto::Photo3),
+            _ => unreachable!(),
+        }
+    } else if token == "next" {
+        Ok(SelectPhoto::NextPhoto)
+    } else {
+        Err(TasError::ParsingError {
+            line_number,
+            line: line.into(),
+            error: Cow::Borrowed("Expected one of 1,2,3,next"),
+        })
+    }
 }
 
 fn parse_scale_tokens<'a>(
