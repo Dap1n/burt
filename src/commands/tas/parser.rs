@@ -1327,20 +1327,27 @@ fn parse_autojump_tokens<'a>(
     line_number: u32,
     line: &str,
 ) -> TasResult<Option<DuckState>> {
-    for (i, token) in tokens.enumerate() {
-        if i != 0 {
-            return Err(TasError::ParsingError {
-                line_number,
-                line: line.into(),
-                error: Cow::Borrowed("Expected not more than 1 token in autojump"),
-            });
-        }
-        if token == "off" {
-            return Ok(None);
-        }
-        return Ok(Some(DuckState::from_str(token)));
+    let Some(token) = tokens.next() else {
+        return Ok(Some(DuckState::Disabled));
+    };
+    if tokens.next().is_some() {
+        return Err(TasError::ParsingError {
+            line_number,
+            line: line.into(),
+            error: Cow::Borrowed("Expected not more than 1 token in autojump"),
+        });
     }
-    Ok(Some(DuckState::Disabled))
+    match token {
+        "off" => Ok(None),
+        "on" => Ok(Some(DuckState::Disabled)),
+        "ducked" => Ok(Some(DuckState::Partial)),
+        "?ducked" => Ok(Some(DuckState::Full)),
+        _ => Err(TasError::ParsingError {
+            line_number,
+            line: line.into(),
+            error: Cow::Borrowed("Unknown token in autojump"),
+        }),
+    }
 }
 
 fn parse_absmov_tokens<'a>(
