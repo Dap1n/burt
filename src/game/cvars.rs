@@ -1,5 +1,5 @@
 use std::{
-    ffi::{CStr, CString},
+    ffi::CStr,
     os::raw::{c_char, c_void},
     sync::atomic::{AtomicUsize, Ordering},
 };
@@ -8,7 +8,6 @@ use crate::{bridge::commands::ICVAR, game::provider::provider};
 
 const NOT_FOUND: usize = usize::MAX;
 
-type SetStrFn = unsafe extern "thiscall" fn(*mut c_void, *const c_char);
 type SetF32Fn = unsafe extern "thiscall" fn(*mut c_void, f32);
 type SetI32Fn = unsafe extern "thiscall" fn(*mut c_void, i32);
 
@@ -85,20 +84,6 @@ impl CachedConVar {
         }
 
         unsafe { *((ptr + provider().convar_int_value_off()) as *const i32) }
-    }
-
-    pub fn set_string(&self, val: &str) {
-        let obj = self.resolve();
-        if obj == 0 {
-            return;
-        }
-        if let Ok(cs) = CString::new(val) {
-            unsafe {
-                let f: SetStrFn =
-                    std::mem::transmute(vtable_slot(obj, provider().convar_set_string_row()));
-                f(obj as *mut c_void, cs.as_ptr());
-            }
-        }
     }
 
     pub fn set_float(&self, val: f32) {

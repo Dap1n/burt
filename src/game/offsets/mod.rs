@@ -72,7 +72,6 @@ pub trait OffsetsProvider: Send + Sync {
 
     // --- ConVar Offsets/Slots ---
     fn icvar_find_command_slot(&self) -> usize;
-    fn convar_set_string_row(&self) -> usize;
     fn convar_set_float_row(&self) -> usize;
     fn convar_set_int_row(&self) -> usize;
     fn convar_float_value_off(&self) -> usize;

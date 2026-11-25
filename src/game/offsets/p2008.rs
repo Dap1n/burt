@@ -224,9 +224,6 @@ impl OffsetsProvider for Project2008 {
     fn icvar_find_command_slot(&self) -> usize {
         14
     }
-    fn convar_set_string_row(&self) -> usize {
-        12
-    }
     fn convar_set_float_row(&self) -> usize {
         13
     }
