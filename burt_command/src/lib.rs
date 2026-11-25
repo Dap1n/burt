@@ -1,5 +1,5 @@
 use proc_macro::TokenStream;
-use proc_macro2::{Ident, TokenStream as TokenStream2};
+use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use quote::quote;
 use syn::{
     Expr, ExprLit, FnArg, ItemFn, Lit, Meta, Pat, PathArguments, Token, Type, parse::Parser,
@@ -30,7 +30,17 @@ fn parse_param(ty: &Type) -> Option<(Required, &Ident)> {
     }
 }
 
-fn parse_doc_to_clog_segments(doc: &str) -> TokenStream2 {
+fn segment(color: &str, text: &str) -> TokenStream2 {
+    let color = Ident::new(color, Span::call_site());
+    quote! {
+        crate::command_utils::LogSegment {
+            color: crate::structs::Color::#color,
+            text: #text,
+        }
+    }
+}
+
+fn parse_doc_to_segments(doc: &str) -> Vec<TokenStream2> {
     let mut segments = Vec::new();
     let mut in_code = false;
     let mut current_chunk = String::new();
@@ -38,14 +48,10 @@ fn parse_doc_to_clog_segments(doc: &str) -> TokenStream2 {
     for ch in doc.chars() {
         if ch == '`' {
             if !current_chunk.is_empty() {
-                let color = if in_code {
-                    quote! { crate::structs::Color::YELLOW }
-                } else {
-                    quote! { crate::structs::Color::WHITE }
-                };
-                segments.push(quote! {
-                    [#color => "{}", #current_chunk]
-                });
+                segments.push(segment(
+                    if in_code { "YELLOW" } else { "WHITE" },
+                    &current_chunk,
+                ));
                 current_chunk.clear();
             }
             in_code = !in_code;
@@ -55,24 +61,13 @@ fn parse_doc_to_clog_segments(doc: &str) -> TokenStream2 {
     }
 
     if !current_chunk.is_empty() {
-        let color = if in_code {
-            quote! { crate::structs::Color::YELLOW }
-        } else {
-            quote! { crate::structs::Color::WHITE }
-        };
-        segments.push(quote! {
-            [#color => "{}", #current_chunk]
-        });
+        segments.push(segment(
+            if in_code { "YELLOW" } else { "WHITE" },
+            &current_chunk,
+        ));
     }
 
-    let mut out = TokenStream2::new();
-    for (i, seg) in segments.iter().enumerate() {
-        out.extend(seg.clone());
-        if i < segments.len() - 1 {
-            out.extend(quote! { , });
-        }
-    }
-    out
+    segments
 }
 
 #[proc_macro_attribute]
@@ -84,7 +79,7 @@ pub fn burt_command(attr: TokenStream, item: TokenStream) -> TokenStream {
     let stmts = &input_fn.block.stmts;
 
     let mut is_cheat = false;
-    let mut var_path: Option<syn::Path> = None;
+    let mut var_path = None;
 
     if !attr.is_empty() {
         let ts: TokenStream2 = attr.into();
@@ -143,58 +138,41 @@ pub fn burt_command(attr: TokenStream, item: TokenStream) -> TokenStream {
         .replace(" < ", "<")
         .replace(" >", ">");
 
-    let prefix = {
-        let mut segments = TokenStream2::new();
-        let fn_name_str = fn_name.to_string();
+    let mut prefix_segments = Vec::new();
+    prefix_segments.push(if is_cheat {
+        segment("RED", "Cheat: ")
+    } else {
+        segment("LIME", "Signature: ")
+    });
+    prefix_segments.push(segment("GRAY", &format!("{vis_str}fn ")));
+    prefix_segments.push(segment("LIME", &fn_name.to_string()));
+    prefix_segments.push(segment("GRAY", "("));
 
-        segments.extend(if is_cheat {
-            quote! { [crate::structs::Color::RED => "Cheat: "], }
+    let args: Vec<_> = clean_params.split(',').collect();
+    for (i, arg) in args.iter().enumerate() {
+        let arg = arg.trim();
+        if let Some((name, ty)) = arg.split_once(':') {
+            let name = name.trim();
+            let ty = ty.trim();
+            prefix_segments.push(segment("WHITE", &format!("{name}: ")));
+            prefix_segments.push(segment("LIME", ty));
         } else {
-            quote! { [crate::structs::Color::LIME => "Signature: "], }
-        });
-
-        segments.extend(quote! {
-            [crate::structs::Color::GRAY => "{}fn ", #vis_str],
-            [crate::structs::Color::LIME => "{}", #fn_name_str],
-            [crate::structs::Color::GRAY => "("],
-        });
-
-        let args: Vec<_> = clean_params.split(',').collect();
-        for (i, arg) in args.iter().enumerate() {
-            let arg = arg.trim();
-            if let Some((name, ty)) = arg.split_once(':') {
-                let name = name.trim();
-                let ty = ty.trim();
-                segments.extend(quote! {
-                    [crate::structs::Color::WHITE => "{}: ", #name],
-                    [crate::structs::Color::LIME => "{}", #ty],
-                });
-            } else {
-                segments.extend(quote! {
-                    [crate::structs::Color::WHITE => "{}", #arg],
-                });
-            }
-            if i < args.len() - 1 {
-                segments.extend(quote! {
-                    [crate::structs::Color::GRAY => ", "],
-                });
-            }
+            prefix_segments.push(segment("WHITE", arg));
         }
-
-        segments.extend(quote! {
-            [crate::structs::Color::GRAY => ")"],
-            [crate::structs::Color::WHITE => "\n"]
-        });
-
-        if let Some(v) = &var_path {
-            segments.extend(quote! {
-                ,
-                [crate::structs::Color::YELLOW => "Current value: "],
-                [crate::structs::Color::WHITE => "{}\n\n", crate::vars::BurtVar::display(&#v)]
-            });
+        if i < args.len() - 1 {
+            prefix_segments.push(segment("GRAY", ", "));
         }
+    }
 
-        segments
+    prefix_segments.push(segment("GRAY", ")"));
+    prefix_segments.push(segment("WHITE", "\n"));
+
+    let var_display = if let Some(v) = &var_path {
+        quote! {
+            Some((|| format!("{}\n\n", crate::vars::BurtVar::display(&#v))) as fn() -> String)
+        }
+    } else {
+        quote! { None }
     };
 
     let mut doc_lines = Vec::new();
@@ -215,6 +193,8 @@ pub fn burt_command(attr: TokenStream, item: TokenStream) -> TokenStream {
             .to_compile_error()
             .into();
     }
+
+    let doc_segments = parse_doc_to_segments(&doc_lines.join("\n"));
 
     let mut param_bindings = Vec::new();
     let mut arg_index: usize = 1;
@@ -250,106 +230,31 @@ pub fn burt_command(attr: TokenStream, item: TokenStream) -> TokenStream {
                 .to_compile_error()
                 .into();
             }
+
             opt_param_found = opt_param_found || !param_required;
 
-            let binding = match (param_str.as_str(), param_required) {
-                ("args", true) => {
-                    args_param_found = true;
-                    quote! {
-                        let #param_name = if let Some(remainder) = command.get_args_remainder(#arg_index) {
-                            match <#param_ident as crate::params::BurtParam>::from_input(remainder) {
-                                Ok(parsed) => parsed,
-                                Err(err_str) => {
-                                    crate::clog!(
-                                        #prefix,
-                                        [crate::structs::Color::WHITE => "Special parameter "],
-                                        [crate::structs::Color::RED => "args"],
-                                        [crate::structs::Color::WHITE => " "],
-                                        [crate::structs::Color::WHITE => "{}", err_str],
-                                    );
-                                    return;
-                                }
-                            }
-                        } else {
-                            crate::clog!(
-                                #prefix,
-                                [crate::structs::Color::WHITE => "Special parameter "],
-                                [crate::structs::Color::RED => "args"],
-                                [crate::structs::Color::WHITE => " is required but not provided"],
-                            );
-                            return;
-                        };
-                    }
+            let is_special = param_str == "args";
+            if is_special {
+                args_param_found = true;
+            }
+
+            let binding = if param_required {
+                quote! {
+                    let #param_name = match crate::command_utils::parse_param::<#param_ident>(
+                        command, &__BURT_INFO, #arg_index, #param_str, true, #is_special,
+                    ) {
+                        Ok(Some(parsed)) => parsed,
+                        _ => return,
+                    };
                 }
-                ("args", false) => {
-                    args_param_found = true;
-                    quote! {
-                        let #param_name = if let Some(remainder) = command.get_args_remainder(#arg_index) {
-                            match <#param_ident as crate::params::BurtParam>::from_input(remainder) {
-                                Ok(parsed) => Some(parsed),
-                                Err(err_str) => {
-                                    crate::clog!(
-                                        #prefix,
-                                        [crate::structs::Color::WHITE => "Special parameter "],
-                                        [crate::structs::Color::RED => "args"],
-                                        [crate::structs::Color::WHITE => " "],
-                                        [crate::structs::Color::WHITE => "{}", err_str],
-                                    );
-                                    return;
-                                }
-                            }
-                        } else {
-                            None
-                        };
-                    }
-                }
-                (_, true) => {
-                    quote! {
-                        let #param_name = if let Some(input) = command.get_arg(#arg_index) {
-                            match <#param_ident as crate::params::BurtParam>::from_input(input) {
-                                Ok(parsed) => parsed,
-                                Err(err_str) => {
-                                    crate::clog!(
-                                        #prefix,
-                                        [crate::structs::Color::WHITE => "Parameter "],
-                                        [crate::structs::Color::RED => "{}", #param_str],
-                                        [crate::structs::Color::WHITE => " "],
-                                        [crate::structs::Color::WHITE => "{}", err_str],
-                                    );
-                                    return;
-                                }
-                            }
-                        } else {
-                            crate::clog!(
-                                #prefix,
-                                [crate::structs::Color::WHITE => "Parameter "],
-                                [crate::structs::Color::RED => "{}", #param_str],
-                                [crate::structs::Color::WHITE => " is required but not provided"],
-                            );
-                            return;
-                        };
-                    }
-                }
-                (_, false) => {
-                    quote! {
-                        let #param_name = if let Some(input) = command.get_arg(#arg_index) {
-                            match <#param_ident as crate::params::BurtParam>::from_input(input) {
-                                Ok(parsed) => Some(parsed),
-                                Err(err_str) => {
-                                    crate::clog!(
-                                        #prefix,
-                                        [crate::structs::Color::WHITE => "Parameter "],
-                                        [crate::structs::Color::RED => "{}", #param_str],
-                                        [crate::structs::Color::WHITE => " "],
-                                        [crate::structs::Color::WHITE => "{}", err_str],
-                                    );
-                                    return;
-                                }
-                            }
-                        } else {
-                            None
-                        };
-                    }
+            } else {
+                quote! {
+                    let #param_name = match crate::command_utils::parse_param::<#param_ident>(
+                        command, &__BURT_INFO, #arg_index, #param_str, false, #is_special,
+                    ) {
+                        Ok(parsed) => parsed,
+                        Err(()) => return,
+                    };
                 }
             };
 
@@ -358,26 +263,14 @@ pub fn burt_command(attr: TokenStream, item: TokenStream) -> TokenStream {
         }
     }
 
-    let clog_stmt = {
-        let doc_segments = parse_doc_to_clog_segments(&doc_lines.join("\n"));
+    let extra_args_check = if !args_param_found {
         quote! {
-            if #required_params_exist && command.is_empty()
-                || command.get_args_remainder(1).is_some_and(|s| s.trim_end() == "?")
-            {
-                crate::clog!(
-                    #prefix,
-                    #doc_segments,
-                );
-                return;
-            }
-            if !#args_param_found && command.get_arg(#arg_index).is_some() {
-                crate::clog!(
-                    #prefix,
-                    [crate::structs::Color::RED => "Too many arguments"],
-                );
+            if crate::command_utils::check_extra_args(command, &__BURT_INFO) {
                 return;
             }
         }
+    } else {
+        quote! {}
     };
 
     let cheat_doc_prefix = if is_cheat {
@@ -412,7 +305,18 @@ pub fn burt_command(attr: TokenStream, item: TokenStream) -> TokenStream {
             }
             let command = unsafe { &*command };
 
-            #clog_stmt
+            static __BURT_INFO: crate::command_utils::CommandInfo = crate::command_utils::CommandInfo {
+                prefix: &[#(#prefix_segments),*],
+                doc: &[#(#doc_segments),*],
+                var_display: #var_display,
+                required_params_exist: #required_params_exist,
+                arg_index: #arg_index,
+            };
+
+            if crate::command_utils::check_help(command, &__BURT_INFO) {
+                return;
+            }
+            #extra_args_check
             #cheat_guard
 
             #(#param_bindings)*

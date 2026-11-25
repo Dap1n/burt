@@ -1,4 +1,5 @@
 mod bridge;
+mod command_utils;
 mod commands;
 mod consts;
 mod create_plugin;
