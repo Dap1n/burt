@@ -17,15 +17,16 @@ pub trait OffsetsProvider: Send + Sync {
     // --- server.dll Signatures ---
     fn accept_input_sig(&self) -> Signature;
     fn physics_simulate_sig(&self) -> Signature;
+    fn can_be_captured_sig(&self) -> Signature;
     fn scroll_scale_sig(&self) -> Signature;
     fn select_photo_sig(&self) -> Signature;
+    fn next_photo_sig(&self) -> Signature;
 
     // --- engine.dll Signatures ---
     fn p_entity_sig(&self) -> Signature;
     fn key_event_sig(&self) -> Signature;
     fn host_filter_time_sig(&self) -> Signature;
     fn accumulator_sig(&self) -> Signature;
-    fn next_photo_sig(&self) -> Signature;
 
     // --- engine.dll Offsets ---
     fn key_bindings_offset(&self) -> usize;

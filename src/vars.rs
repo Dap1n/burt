@@ -16,6 +16,16 @@ impl BurtVar for AtomicI32 {
         self.load(Ordering::Relaxed).to_string()
     }
 }
+impl BurtVar for AtomicU8 {
+    fn display(&self) -> String {
+        self.load(Ordering::Relaxed).to_string()
+    }
+}
+impl BurtVar for AtomicI8 {
+    fn display(&self) -> String {
+        self.load(Ordering::Relaxed).to_string()
+    }
+}
 impl BurtVar for AtomicF32 {
     fn display(&self) -> String {
         self.load(Ordering::Relaxed).to_string()

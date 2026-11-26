@@ -1,3 +1,4 @@
+pub mod bvars;
 pub mod capture_report;
 pub mod scale;
 

@@ -45,6 +45,7 @@ register_commands! {
     tas::burt_resume => "Resume the game",
     tas::burt_tas_stop => "Stop the current TAS",
 
+    p2008::bvars::bvar_capture_override => "Override capturing abilities",
     bvars::bvar_tas_check_disable => "Globally disable the TAS check tool",
     bvars::bvar_tas_check_max_replays => "How many times the check tool will restart playback",
     bvars::bvar_tas_commands_disable => "Globally disable commands in TAS script",

@@ -54,6 +54,7 @@ BURT Variables are a nicer alternative to standard ConVars. They only accept val
 
 | Command | Description |
 | --- | --- |
+| `bvar_capture_override <capture_override>` | Override capturing abilities in P2008. |
 | `bvar_tas_check_disable <disable>` | Globally disable the TAS check tool. |
 | `bvar_tas_check_max_replays <replays>` | How many times the check tool will restart playback. |
 | `bvar_tas_commands_disable <disable>` | Globally disable commands in TAS script. |

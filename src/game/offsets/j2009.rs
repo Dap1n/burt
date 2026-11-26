@@ -59,6 +59,9 @@ impl OffsetsProvider for July2009 {
     }
 
     // Unique to F-Stop
+    fn can_be_captured_sig(&self) -> Signature {
+        unimplemented!()
+    }
     fn scroll_scale_sig(&self) -> Signature {
         unimplemented!()
     }

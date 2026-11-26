@@ -4,6 +4,7 @@ use crate::engine_build;
 
 pub mod accept_input;
 pub mod accumulate_time;
+pub mod capture_override;
 pub mod create_move;
 pub mod input_filter;
 pub mod physics;
@@ -15,6 +16,7 @@ pub fn install_all() -> Result<(), detour::Error> {
     unsafe {
         accumulate_time::install()?;
         accept_input::install(build)?;
+        capture_override::install(build)?;
         create_move::install(build)?;
         input_filter::install(build)?;
         physics::install()?;
@@ -29,6 +31,7 @@ pub fn uninstall_all() -> Result<(), detour::Error> {
     unsafe {
         accumulate_time::uninstall()?;
         accept_input::uninstall(build)?;
+        capture_override::uninstall(build)?;
         create_move::uninstall(build)?;
         input_filter::uninstall(build)?;
         physics::uninstall()?;

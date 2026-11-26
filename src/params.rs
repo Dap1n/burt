@@ -52,6 +52,22 @@ impl BurtParam for i32 {
     }
 }
 
+impl BurtParam for i8 {
+    fn from_input(input: &str) -> Result<Self, &'static str> {
+        let input = input.to_lowercase();
+        if let Some(stripped) = input.strip_prefix("0b") {
+            Self::from_str_radix(stripped, 2)
+        } else if let Some(stripped) = input.strip_prefix("0o") {
+            Self::from_str_radix(stripped, 8)
+        } else if let Some(stripped) = input.strip_prefix("0x") {
+            Self::from_str_radix(stripped, 16)
+        } else {
+            input.parse()
+        }
+        .map_err(|_| "expects a parseable signed 8-bit integer")
+    }
+}
+
 impl BurtParam for u32 {
     fn from_input(input: &str) -> Result<Self, &'static str> {
         let input = input.to_lowercase();
